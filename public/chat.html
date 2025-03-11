@@ -199,11 +199,11 @@
                         await handleOffer(data);
                         break;
                     case 'answer':
-                        console.log('Received answer');
+                        console.log('Received answer from:', data.peerId);
                         await handleAnswer(data);
                         break;
                     case 'candidate':
-                        console.log('Received ICE candidate');
+                        console.log('Received ICE candidate from:', data.peerId);
                         await handleCandidate(data);
                         break;
                     case 'peer-disconnected':
@@ -469,7 +469,7 @@
         }
 
         async function handleAnswer(data) {
-            console.log('Initiator handling answer');
+            console.log('Initiator handling answer from:', remotePeerId);
             await peerConnection.setRemoteDescription(new RTCSessionDescription(data.answer));
         }
 
