@@ -89,7 +89,10 @@ wss.on('connection', (ws, req) => {
         }
         else if (data.type === 'report') {
             const reportedPeerId = data.reportedPeerId;
+            const myPeerId = data.myPeerId;
             const reportedWs = peers.get(reportedPeerId);
+            const myWs = peers.get(myPeerId);
+
             if (reportedWs) {
                 const reportedIP = reportedWs.ip;
                 const reportCount = (reports.get(reportedIP) || 0) + 1;
@@ -103,11 +106,45 @@ wss.on('connection', (ws, req) => {
                     peers.delete(reportedPeerId);
                     waitingPool.delete(reportedPeerId);
                     console.log(`Banned IP: ${reportedIP}`);
-                    broadcastAdminUpdate();
+                } else {
+                    // Requeue both peers if not banned
+                    if (reportedWs.readyState === WebSocket.OPEN) {
+                        reportedWs.send(JSON.stringify({ type: 'requeue' }));
+                        waitingPool.add(reportedPeerId);
+                    }
+                    if (myWs && myWs.readyState === WebSocket.OPEN) {
+                        myWs.send(JSON.stringify({ type: 'requeue' }));
+                        waitingPool.add(myPeerId);
+                    }
+                    console.log(`Requeued ${myPeerId} and ${reportedPeerId} to waiting pool`);
                 }
             } else {
                 console.log(`Reported peer not found: ${reportedPeerId}`);
+                if (myWs && myWs.readyState === WebSocket.OPEN) {
+                    myWs.send(JSON.stringify({ type: 'requeue' }));
+                    waitingPool.add(myPeerId);
+                }
             }
+            connectRandomPeers();
+            broadcastAdminUpdate();
+        }
+        else if (data.type === 'end-chat') {
+            const myPeerId = data.myPeerId;
+            const targetPeerId = data.target;
+            const targetWs = peers.get(targetPeerId);
+            const myWs = peers.get(myPeerId);
+
+            if (targetWs && targetWs.readyState === WebSocket.OPEN) {
+                targetWs.send(JSON.stringify({ type: 'requeue' }));
+                waitingPool.add(targetPeerId);
+            }
+            if (myWs && myWs.readyState === WebSocket.OPEN) {
+                myWs.send(JSON.stringify({ type: 'requeue' }));
+                waitingPool.add(myPeerId);
+            }
+            console.log(`Requeued ${myPeerId} and ${targetPeerId} to waiting pool after end-chat`);
+            connectRandomPeers();
+            broadcastAdminUpdate();
         }
         else if (data.type === 'chat') {
             const targetPeer = peers.get(data.target);

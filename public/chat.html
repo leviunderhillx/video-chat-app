@@ -195,17 +195,17 @@
                         addChatMessage(data.message, data.sender === myPeerId ? 'You' : 'Them');
                         break;
                     case 'offer':
-                        remotePeerId = data.peerId; // Ensure remotePeerId is set
+                        remotePeerId = data.peerId;
                         console.log('Received offer from:', remotePeerId);
                         await handleOffer(data);
                         break;
                     case 'answer':
-                        remotePeerId = remotePeerId || data.peerId; // Fallback if not set
+                        remotePeerId = remotePeerId || data.peerId;
                         console.log('Received answer from:', remotePeerId);
                         await handleAnswer(data);
                         break;
                     case 'candidate':
-                        remotePeerId = remotePeerId || data.peerId; // Fallback if not set
+                        remotePeerId = remotePeerId || data.peerId;
                         console.log('Received ICE candidate from:', remotePeerId);
                         await handleCandidate(data);
                         break;
@@ -232,6 +232,18 @@
                         if (isAdmin) {
                             displayScreenshot(data.peerId, data.screenshot);
                         }
+                        break;
+                    case 'requeue':
+                        console.log('Requeued to waiting pool');
+                        statusText.textContent = 'Waiting for match...';
+                        remotePeerId = null;
+                        if (peerConnection) peerConnection.close();
+                        peerConnection = null;
+                        remoteVideo.srcObject = null;
+                        chatMessages.innerHTML = '';
+                        reportButton.disabled = true;
+                        chatInput.disabled = true;
+                        sendChatButton.disabled = true;
                         break;
                 }
             };
@@ -281,9 +293,10 @@
             if (remotePeerId) {
                 ws.send(JSON.stringify({ 
                     type: 'report', 
-                    reportedPeerId: remotePeerId 
+                    reportedPeerId: remotePeerId,
+                    myPeerId: myPeerId
                 }));
-                statusText.textContent = 'User reported';
+                statusText.textContent = 'User reported, returning to pool';
                 console.log('Reported peer:', remotePeerId);
             }
         }
@@ -419,7 +432,8 @@
             ws.send(JSON.stringify({
                 type: 'offer',
                 offer: offer,
-                target: remotePeerId
+                target: remotePeerId,
+                peerId: myPeerId
             }));
         }
 
@@ -467,14 +481,14 @@
             ws.send(JSON.stringify({
                 type: 'answer',
                 answer: answer,
-                target: remotePeerId
+                target: remotePeerId,
+                peerId: myPeerId
             }));
         }
 
         async function handleAnswer(data) {
             console.log('Initiator handling answer from:', remotePeerId);
             await peerConnection.setRemoteDescription(new RTCSessionDescription(data.answer));
-            // Delay to ensure candidates are processed
             setTimeout(() => {
                 if (peerConnection.iceConnectionState !== 'connected') {
                     console.log('ICE connection not established yet, waiting...');
@@ -492,11 +506,17 @@
         }
 
         function endVideoChat() {
+            if (remotePeerId) {
+                ws.send(JSON.stringify({
+                    type: 'end-chat',
+                    myPeerId: myPeerId,
+                    target: remotePeerId
+                }));
+            }
             if (peerConnection) peerConnection.close();
             if (localStream) {
                 localStream.getTracks().forEach(track => track.stop());
             }
-            if (ws) ws.close();
             localVideo.srcObject = null;
             remoteVideo.srcObject = null;
             peerConnection = null;
@@ -505,9 +525,9 @@
             chatInput.disabled = true;
             sendChatButton.disabled = true;
             chatMessages.innerHTML = '';
-            statusText.textContent = 'Disconnected';
-            if (!isAdmin) connectWebSocket();
-            console.log('Chat ended');
+            statusText.textContent = 'Waiting for match...';
+            ws.send(JSON.stringify({ type: 'join' })); // Rejoin pool
+            console.log('Chat ended, rejoining pool');
         }
 
         chatInput.addEventListener('keypress', (e) => {
