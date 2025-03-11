@@ -161,7 +161,8 @@
         const canvas = document.getElementById('screenshot-canvas');
         const ctx = canvas.getContext('2d');
 
-        const SIGNALING_SERVER_URL = 'https://video-chat-server-t6df.onrender.com'; // Update with your Render URL
+        // Fixed WebSocket URL (use wss://, not https://)
+        const SIGNALING_SERVER_URL = 'wss://video-chat-server-t6df.onrender.com'; // Confirm this matches your Render Web Service
         connectWebSocket();
 
         function connectWebSocket() {
@@ -174,13 +175,16 @@
 
             ws.onmessage = async (event) => {
                 const data = JSON.parse(event.data);
-                
+                console.log('Received message:', data);
+
                 switch (data.type) {
                     case 'connected':
                         myPeerId = data.peerId;
+                        console.log('My peer ID:', myPeerId);
                         break;
                     case 'matched':
                         remotePeerId = data.peerId;
+                        console.log('Matched with:', remotePeerId);
                         statusText.textContent = 'Matched with peer';
                         reportButton.disabled = false;
                         chatInput.disabled = false;
@@ -188,15 +192,19 @@
                         initiateCall();
                         break;
                     case 'chat':
+                        console.log('Chat from:', data.sender, 'Message:', data.message);
                         addChatMessage(data.message, data.sender === myPeerId ? 'You' : 'Them');
                         break;
                     case 'offer':
+                        console.log('Received offer from:', data.peerId);
                         await handleOffer(data);
                         break;
                     case 'answer':
+                        console.log('Received answer');
                         await handleAnswer(data);
                         break;
                     case 'candidate':
+                        console.log('Received ICE candidate');
                         await handleCandidate(data);
                         break;
                     case 'peer-disconnected':
@@ -228,7 +236,12 @@
 
             ws.onerror = (error) => {
                 console.error('WebSocket error:', error);
-                statusText.textContent = 'Connection error';
+                statusText.textContent = 'WebSocket connection failed';
+            };
+
+            ws.onclose = () => {
+                console.log('WebSocket closed');
+                statusText.textContent = 'Disconnected from server';
             };
         }
 
@@ -240,9 +253,10 @@
                 });
                 localVideo.srcObject = localStream;
                 statusText.textContent = 'Video started';
+                console.log('Local stream tracks:', localStream.getTracks());
             } catch (error) {
-                console.error('Error accessing media devices:', error);
-                statusText.textContent = 'Error starting video';
+                console.error('Error accessing media devices:', error.name, error.message);
+                statusText.textContent = `Error starting video: ${error.name}`;
             }
         }
 
@@ -257,6 +271,7 @@
             }
             ws.send(JSON.stringify({ type: 'join' }));
             statusText.textContent = 'Waiting for match...';
+            console.log('Requesting random match');
         }
 
         function reportPeer() {
@@ -266,12 +281,14 @@
                     reportedPeerId: remotePeerId 
                 }));
                 statusText.textContent = 'User reported';
+                console.log('Reported peer:', remotePeerId);
             }
         }
 
         function sendChatMessage() {
             const message = chatInput.value.trim();
             if (message && remotePeerId) {
+                console.log('Sending chat to:', remotePeerId, 'Message:', message);
                 ws.send(JSON.stringify({
                     type: 'chat',
                     message: message,
@@ -279,6 +296,8 @@
                 }));
                 addChatMessage(message, 'You');
                 chatInput.value = '';
+            } else {
+                console.log('Cannot send chat: remotePeerId missing');
             }
         }
 
@@ -297,6 +316,7 @@
             const password = document.getElementById('admin-password').value;
             ws.send(JSON.stringify({ type: 'admin-login', password }));
             isAdmin = true;
+            console.log('Admin login attempted');
         }
 
         function updateAdminView(peers) {
@@ -340,12 +360,13 @@
             canvas.width = localVideo.videoWidth;
             canvas.height = localVideo.videoHeight;
             ctx.drawImage(localVideo, 0, 0, canvas.width, canvas.height);
-            const screenshot = canvas.toDataURL('image/jpeg', 0.5); // 0.5 quality to reduce size
+            const screenshot = canvas.toDataURL('image/jpeg', 0.5);
             ws.send(JSON.stringify({
                 type: 'screenshot-response',
                 requester: requester,
-                screenshot: screenshot.split(',')[1] // Send base64 without data URL prefix
+                screenshot: screenshot.split(',')[1]
             }));
+            console.log('Sent screenshot to:', requester);
         }
 
         function displayScreenshot(peerId, screenshot) {
@@ -353,6 +374,7 @@
             if (peerContainer) {
                 const img = peerContainer.querySelector('.admin-screenshot');
                 img.src = `data:image/jpeg;base64,${screenshot}`;
+                console.log('Displayed screenshot for:', peerId);
             }
         }
 
@@ -360,16 +382,19 @@
             peerConnection = new RTCPeerConnection(configuration);
             
             localStream.getTracks().forEach(track => {
+                console.log('Adding local track:', track.kind);
                 peerConnection.addTrack(track, localStream);
             });
 
             peerConnection.ontrack = event => {
+                console.log('Received remote stream:', event.streams[0]);
                 remoteVideo.srcObject = event.streams[0];
                 statusText.textContent = 'Connected';
             };
 
             peerConnection.onicecandidate = event => {
                 if (event.candidate) {
+                    console.log('Sending ICE candidate:', event.candidate);
                     ws.send(JSON.stringify({
                         type: 'candidate',
                         candidate: event.candidate,
@@ -379,6 +404,7 @@
             };
 
             peerConnection.oniceconnectionstatechange = () => {
+                console.log('ICE state:', peerConnection.iceConnectionState);
                 if (peerConnection.iceConnectionState === 'disconnected') {
                     statusText.textContent = 'Disconnected';
                 }
@@ -386,6 +412,7 @@
 
             const offer = await peerConnection.createOffer();
             await peerConnection.setLocalDescription(offer);
+            console.log('Sending offer:', offer);
             ws.send(JSON.stringify({
                 type: 'offer',
                 offer: offer,
@@ -395,22 +422,26 @@
 
         async function handleOffer(data) {
             remotePeerId = data.peerId;
+            console.log('Received offer from:', remotePeerId);
             reportButton.disabled = false;
             chatInput.disabled = false;
             sendChatButton.disabled = false;
             peerConnection = new RTCPeerConnection(configuration);
             
             localStream.getTracks().forEach(track => {
+                console.log('Adding local track:', track.kind);
                 peerConnection.addTrack(track, localStream);
             });
 
             peerConnection.ontrack = event => {
+                console.log('Received remote stream:', event.streams[0]);
                 remoteVideo.srcObject = event.streams[0];
                 statusText.textContent = 'Connected';
             };
 
             peerConnection.onicecandidate = event => {
                 if (event.candidate) {
+                    console.log('Sending ICE candidate:', event.candidate);
                     ws.send(JSON.stringify({
                         type: 'candidate',
                         candidate: event.candidate,
@@ -420,14 +451,16 @@
             };
 
             peerConnection.oniceconnectionstatechange = () => {
+                console.log('ICE state:', peerConnection.iceConnectionState);
                 if (peerConnection.iceConnectionState === 'disconnected') {
                     statusText.textContent = 'Disconnected';
                 }
             };
 
-            await peerConnection.setRemoteDescription(data.offer);
+            await peerConnection.setRemoteDescription(new RTCSessionDescription(data.offer));
             const answer = await peerConnection.createAnswer();
             await peerConnection.setLocalDescription(answer);
+            console.log('Sending answer:', answer);
             ws.send(JSON.stringify({
                 type: 'answer',
                 answer: answer,
@@ -436,12 +469,14 @@
         }
 
         async function handleAnswer(data) {
-            await peerConnection.setRemoteDescription(data.answer);
+            console.log('Received answer');
+            await peerConnection.setRemoteDescription(new RTCSessionDescription(data.answer));
         }
 
         async function handleCandidate(data) {
             try {
-                await peerConnection.addIceCandidate(data.candidate);
+                console.log('Adding ICE candidate:', data.candidate);
+                await peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
             } catch (error) {
                 console.error('Error adding ICE candidate:', error);
             }
@@ -463,6 +498,7 @@
             chatMessages.innerHTML = '';
             statusText.textContent = 'Disconnected';
             if (!isAdmin) connectWebSocket();
+            console.log('Chat ended');
         }
 
         chatInput.addEventListener('keypress', (e) => {
