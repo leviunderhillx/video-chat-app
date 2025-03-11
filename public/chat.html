@@ -195,15 +195,18 @@
                         addChatMessage(data.message, data.sender === myPeerId ? 'You' : 'Them');
                         break;
                     case 'offer':
-                        console.log('Received offer from:', data.peerId);
+                        remotePeerId = data.peerId; // Ensure remotePeerId is set
+                        console.log('Received offer from:', remotePeerId);
                         await handleOffer(data);
                         break;
                     case 'answer':
-                        console.log('Received answer from:', data.peerId);
+                        remotePeerId = remotePeerId || data.peerId; // Fallback if not set
+                        console.log('Received answer from:', remotePeerId);
                         await handleAnswer(data);
                         break;
                     case 'candidate':
-                        console.log('Received ICE candidate from:', data.peerId);
+                        remotePeerId = remotePeerId || data.peerId; // Fallback if not set
+                        console.log('Received ICE candidate from:', remotePeerId);
                         await handleCandidate(data);
                         break;
                     case 'peer-disconnected':
@@ -297,7 +300,7 @@
                 addChatMessage(message, 'You');
                 chatInput.value = '';
             } else {
-                console.log('Cannot send chat: remotePeerId missing');
+                console.log('Cannot send chat: remotePeerId missing:', remotePeerId);
             }
         }
 
@@ -471,6 +474,12 @@
         async function handleAnswer(data) {
             console.log('Initiator handling answer from:', remotePeerId);
             await peerConnection.setRemoteDescription(new RTCSessionDescription(data.answer));
+            // Delay to ensure candidates are processed
+            setTimeout(() => {
+                if (peerConnection.iceConnectionState !== 'connected') {
+                    console.log('ICE connection not established yet, waiting...');
+                }
+            }, 2000);
         }
 
         async function handleCandidate(data) {
