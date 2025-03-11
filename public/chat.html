@@ -161,8 +161,7 @@
         const canvas = document.getElementById('screenshot-canvas');
         const ctx = canvas.getContext('2d');
 
-        // Fixed WebSocket URL (use wss://, not https://)
-        const SIGNALING_SERVER_URL = 'wss://video-chat-server-t6df.onrender.com'; // Confirm this matches your Render Web Service
+        const SIGNALING_SERVER_URL = 'wss://video-chat-server-t6df.onrender.com';
         connectWebSocket();
 
         function connectWebSocket() {
@@ -175,7 +174,7 @@
 
             ws.onmessage = async (event) => {
                 const data = JSON.parse(event.data);
-                console.log('Received message:', data);
+                console.log('Received message:', JSON.stringify(data));
 
                 switch (data.type) {
                     case 'connected':
@@ -192,7 +191,7 @@
                         initiateCall();
                         break;
                     case 'chat':
-                        console.log('Chat from:', data.sender, 'Message:', data.message);
+                        console.log('Received chat from:', data.sender, 'Message:', data.message);
                         addChatMessage(data.message, data.sender === myPeerId ? 'You' : 'Them');
                         break;
                     case 'offer':
@@ -267,6 +266,7 @@
             }
             if (!myPeerId) {
                 statusText.textContent = 'Not connected to server';
+                console.log('WebSocket state:', ws.readyState);
                 return;
             }
             ws.send(JSON.stringify({ type: 'join' }));
@@ -382,19 +382,19 @@
             peerConnection = new RTCPeerConnection(configuration);
             
             localStream.getTracks().forEach(track => {
-                console.log('Adding local track:', track.kind);
+                console.log('Initiator adding local track:', track.kind);
                 peerConnection.addTrack(track, localStream);
             });
 
             peerConnection.ontrack = event => {
-                console.log('Received remote stream:', event.streams[0]);
+                console.log('Initiator received remote stream:', event.streams[0]);
                 remoteVideo.srcObject = event.streams[0];
                 statusText.textContent = 'Connected';
             };
 
             peerConnection.onicecandidate = event => {
                 if (event.candidate) {
-                    console.log('Sending ICE candidate:', event.candidate);
+                    console.log('Initiator sending ICE candidate:', event.candidate);
                     ws.send(JSON.stringify({
                         type: 'candidate',
                         candidate: event.candidate,
@@ -404,7 +404,7 @@
             };
 
             peerConnection.oniceconnectionstatechange = () => {
-                console.log('ICE state:', peerConnection.iceConnectionState);
+                console.log('Initiator ICE state:', peerConnection.iceConnectionState);
                 if (peerConnection.iceConnectionState === 'disconnected') {
                     statusText.textContent = 'Disconnected';
                 }
@@ -412,7 +412,7 @@
 
             const offer = await peerConnection.createOffer();
             await peerConnection.setLocalDescription(offer);
-            console.log('Sending offer:', offer);
+            console.log('Initiator sending offer:', offer);
             ws.send(JSON.stringify({
                 type: 'offer',
                 offer: offer,
@@ -422,26 +422,26 @@
 
         async function handleOffer(data) {
             remotePeerId = data.peerId;
-            console.log('Received offer from:', remotePeerId);
+            console.log('Receiver handling offer from:', remotePeerId);
             reportButton.disabled = false;
             chatInput.disabled = false;
             sendChatButton.disabled = false;
             peerConnection = new RTCPeerConnection(configuration);
             
             localStream.getTracks().forEach(track => {
-                console.log('Adding local track:', track.kind);
+                console.log('Receiver adding local track:', track.kind);
                 peerConnection.addTrack(track, localStream);
             });
 
             peerConnection.ontrack = event => {
-                console.log('Received remote stream:', event.streams[0]);
+                console.log('Receiver received remote stream:', event.streams[0]);
                 remoteVideo.srcObject = event.streams[0];
                 statusText.textContent = 'Connected';
             };
 
             peerConnection.onicecandidate = event => {
                 if (event.candidate) {
-                    console.log('Sending ICE candidate:', event.candidate);
+                    console.log('Receiver sending ICE candidate:', event.candidate);
                     ws.send(JSON.stringify({
                         type: 'candidate',
                         candidate: event.candidate,
@@ -451,7 +451,7 @@
             };
 
             peerConnection.oniceconnectionstatechange = () => {
-                console.log('ICE state:', peerConnection.iceConnectionState);
+                console.log('Receiver ICE state:', peerConnection.iceConnectionState);
                 if (peerConnection.iceConnectionState === 'disconnected') {
                     statusText.textContent = 'Disconnected';
                 }
@@ -460,7 +460,7 @@
             await peerConnection.setRemoteDescription(new RTCSessionDescription(data.offer));
             const answer = await peerConnection.createAnswer();
             await peerConnection.setLocalDescription(answer);
-            console.log('Sending answer:', answer);
+            console.log('Receiver sending answer:', answer);
             ws.send(JSON.stringify({
                 type: 'answer',
                 answer: answer,
@@ -469,13 +469,13 @@
         }
 
         async function handleAnswer(data) {
-            console.log('Received answer');
+            console.log('Initiator handling answer');
             await peerConnection.setRemoteDescription(new RTCSessionDescription(data.answer));
         }
 
         async function handleCandidate(data) {
             try {
-                console.log('Adding ICE candidate:', data.candidate);
+                console.log('Handling ICE candidate:', data.candidate);
                 await peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
             } catch (error) {
                 console.error('Error adding ICE candidate:', error);
