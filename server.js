@@ -107,7 +107,6 @@ wss.on('connection', (ws, req) => {
                     waitingPool.delete(reportedPeerId);
                     console.log(`Banned IP: ${reportedIP}`);
                 } else {
-                    // Requeue both peers if not banned
                     if (reportedWs.readyState === WebSocket.OPEN) {
                         reportedWs.send(JSON.stringify({ type: 'requeue' }));
                         waitingPool.add(reportedPeerId);
@@ -128,107 +127,4 @@ wss.on('connection', (ws, req) => {
             connectRandomPeers();
             broadcastAdminUpdate();
         }
-        else if (data.type === 'end-chat') {
-            const myPeerId = data.myPeerId;
-            const targetPeerId = data.target;
-            const targetWs = peers.get(targetPeerId);
-            const myWs = peers.get(myPeerId);
-
-            if (targetWs && targetWs.readyState === WebSocket.OPEN) {
-                targetWs.send(JSON.stringify({ type: 'requeue' }));
-                waitingPool.add(targetPeerId);
-            }
-            if (myWs && myWs.readyState === WebSocket.OPEN) {
-                myWs.send(JSON.stringify({ type: 'requeue' }));
-                waitingPool.add(myPeerId);
-            }
-            console.log(`Requeued ${myPeerId} and ${targetPeerId} to waiting pool after end-chat`);
-            connectRandomPeers();
-            broadcastAdminUpdate();
-        }
-        else if (data.type === 'chat') {
-            const targetPeer = peers.get(data.target);
-            if (targetPeer && targetPeer.readyState === WebSocket.OPEN) {
-                console.log(`Relaying chat from ${peerId} to ${data.target}: ${data.message}`);
-                targetPeer.send(JSON.stringify({
-                    type: 'chat',
-                    message: data.message,
-                    sender: peerId
-                }));
-            } else {
-                console.log(`Chat target ${data.target} not found or not open`);
-            }
-        }
-        else if (data.type === 'admin-ban' && ws.isAdmin) {
-            const targetPeerId = data.peerId;
-            const targetWs = peers.get(targetPeerId);
-            if (targetWs) {
-                bannedIPs.add(targetWs.ip);
-                targetWs.send(JSON.stringify({ type: 'banned', reason: 'Banned by admin' }));
-                targetWs.close();
-                peers.delete(targetPeerId);
-                waitingPool.delete(targetPeerId);
-                console.log(`Admin banned ${targetPeerId} (IP: ${targetWs.ip})`);
-                broadcastAdminUpdate();
-            } else {
-                console.log(`Admin ban target not found: ${targetPeerId}`);
-            }
-        }
-        else if (data.type === 'admin-screenshot-request' && ws.isAdmin) {
-            const targetPeer = peers.get(data.peerId);
-            if (targetPeer) {
-                console.log(`Admin ${peerId} requested screenshot from ${data.peerId}`);
-                targetPeer.send(JSON.stringify({ type: 'screenshot-request', requester: peerId }));
-            } else {
-                console.log(`Screenshot target not found: ${data.peerId}`);
-            }
-        }
-        else if (data.type === 'screenshot-response') {
-            const adminPeer = peers.get(data.requester);
-            if (adminPeer && adminPeer.isAdmin) {
-                console.log(`Sending screenshot from ${peerId} to admin ${data.requester}`);
-                adminPeer.send(JSON.stringify({
-                    type: 'screenshot-response',
-                    peerId: peerId,
-                    screenshot: data.screenshot
-                }));
-            } else {
-                console.log(`Admin not found or not authorized: ${data.requester}`);
-            }
-        }
-        else if (data.type === 'offer' || data.type === 'answer' || data.type === 'candidate') {
-            const targetPeer = peers.get(data.target);
-            if (targetPeer && targetPeer.readyState === WebSocket.OPEN) {
-                console.log(`Relaying ${data.type} from ${peerId} to ${data.target}`);
-                targetPeer.send(JSON.stringify(data));
-            } else {
-                console.log(`${data.type} target ${data.target} not found or not open`);
-            }
-        } else {
-            console.log(`Unhandled message type from ${peerId}: ${data.type}`);
-        }
-    });
-
-    ws.on('close', () => {
-        waitingPool.delete(peerId);
-        peers.delete(peerId);
-        console.log(`Peer ${peerId} disconnected`);
-        peers.forEach((peer) => {
-            peer.send(JSON.stringify({ type: 'peer-disconnected', peerId }));
-        });
-        broadcastAdminUpdate();
-        connectRandomPeers();
-    });
-
-    ws.on('error', (error) => {
-        console.error(`WebSocket error for ${peerId}:`, error);
-    });
-});
-
-wss.on('error', (error) => {
-    console.error('WebSocket server error:', error);
-});
-
-wss.on('listening', () => {
-    console.log(`WebSocket server running on port ${port}`);
-});
+        else if (data

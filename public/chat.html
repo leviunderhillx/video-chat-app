@@ -244,6 +244,8 @@
                         reportButton.disabled = true;
                         chatInput.disabled = true;
                         sendChatButton.disabled = true;
+                        await startVideoChat();
+                        ws.send(JSON.stringify({ type: 'join' }));
                         break;
                 }
             };
@@ -256,11 +258,15 @@
             ws.onclose = () => {
                 console.log('WebSocket closed');
                 statusText.textContent = 'Disconnected from server';
+                if (!isAdmin) connectWebSocket();
             };
         }
 
         async function startVideoChat() {
             try {
+                if (localStream) {
+                    localStream.getTracks().forEach(track => track.stop());
+                }
                 localStream = await navigator.mediaDevices.getUserMedia({ 
                     video: true, 
                     audio: true 
@@ -395,7 +401,15 @@
         }
 
         async function initiateCall() {
+            if (!localStream) {
+                await startVideoChat();
+            }
+            if (peerConnection) {
+                peerConnection.close();
+                peerConnection = null;
+            }
             peerConnection = new RTCPeerConnection(configuration);
+            console.log('Initiator signaling state:', peerConnection.signalingState);
             
             localStream.getTracks().forEach(track => {
                 console.log('Initiator adding local track:', track.kind);
@@ -426,6 +440,11 @@
                 }
             };
 
+            peerConnection.onsignalingstatechange = () => {
+                console.log('Initiator signaling state changed:', peerConnection.signalingState);
+            };
+
+            await new Promise(resolve => setTimeout(resolve, 500)); // Ensure tracks are ready
             const offer = await peerConnection.createOffer();
             await peerConnection.setLocalDescription(offer);
             console.log('Initiator sending offer:', offer);
@@ -443,7 +462,15 @@
             reportButton.disabled = false;
             chatInput.disabled = false;
             sendChatButton.disabled = false;
+            if (!localStream) {
+                await startVideoChat();
+            }
+            if (peerConnection) {
+                peerConnection.close();
+                peerConnection = null;
+            }
             peerConnection = new RTCPeerConnection(configuration);
+            console.log('Receiver signaling state:', peerConnection.signalingState);
             
             localStream.getTracks().forEach(track => {
                 console.log('Receiver adding local track:', track.kind);
@@ -474,7 +501,12 @@
                 }
             };
 
+            peerConnection.onsignalingstatechange = () => {
+                console.log('Receiver signaling state changed:', peerConnection.signalingState);
+            };
+
             await peerConnection.setRemoteDescription(new RTCSessionDescription(data.offer));
+            await new Promise(resolve => setTimeout(resolve, 500)); // Ensure tracks are ready
             const answer = await peerConnection.createAnswer();
             await peerConnection.setLocalDescription(answer);
             console.log('Receiver sending answer:', answer);
@@ -488,7 +520,16 @@
 
         async function handleAnswer(data) {
             console.log('Initiator handling answer from:', remotePeerId);
+            if (peerConnection.signalingState !== 'have-local-offer') {
+                console.warn('Invalid signaling state for answer:', peerConnection.signalingState);
+                if (peerConnection) peerConnection.close();
+                peerConnection = new RTCPeerConnection(configuration);
+                localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
+                await initiateCall(); // Restart negotiation
+                return;
+            }
             await peerConnection.setRemoteDescription(new RTCSessionDescription(data.answer));
+            console.log('Initiator signaling state after answer:', peerConnection.signalingState);
             setTimeout(() => {
                 if (peerConnection.iceConnectionState !== 'connected') {
                     console.log('ICE connection not established yet, waiting...');
@@ -513,21 +554,26 @@
                     target: remotePeerId
                 }));
             }
-            if (peerConnection) peerConnection.close();
+            if (peerConnection) {
+                peerConnection.close();
+                peerConnection = null;
+            }
             if (localStream) {
                 localStream.getTracks().forEach(track => track.stop());
+                localStream = null;
             }
             localVideo.srcObject = null;
             remoteVideo.srcObject = null;
-            peerConnection = null;
             remotePeerId = null;
             reportButton.disabled = true;
             chatInput.disabled = true;
             sendChatButton.disabled = true;
             chatMessages.innerHTML = '';
             statusText.textContent = 'Waiting for match...';
-            ws.send(JSON.stringify({ type: 'join' })); // Rejoin pool
             console.log('Chat ended, rejoining pool');
+            startVideoChat().then(() => {
+                ws.send(JSON.stringify({ type: 'join' }));
+            });
         }
 
         chatInput.addEventListener('keypress', (e) => {
