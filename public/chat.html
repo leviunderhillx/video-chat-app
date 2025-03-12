@@ -81,8 +81,8 @@
             border-radius: 5px;
         }
         #stream-video {
-            width: 60vw; /* Larger for streaming */
-            max-width: 960px; /* Bigger cap for single stream */
+            width: 60vw;
+            max-width: 960px;
             height: auto;
         }
         @media (max-width: 768px) {
@@ -192,7 +192,7 @@
         <video id="remoteVideo" autoplay playsinline></video>
     </div>
     <div class="single-video-container" id="stream-container" style="display: none;">
-        <video id="stream-video" autoplay playsinline muted></video>
+        <video id="stream-video" autoplay playsinline></video>
     </div>
 
     <div id="chat-container">
@@ -293,22 +293,25 @@
                         await handleOffer(data);
                         break;
                     case 'answer':
-                        remotePeerId = remotePeerId || data.peerId;
+                        remotePeerId = data.peerId || remotePeerId;
                         await handleAnswer(data);
                         break;
                     case 'candidate':
-                        remotePeerId = remotePeerId || data.peerId;
+                        remotePeerId = data.peerId || remotePeerId;
                         await handleCandidate(data);
                         break;
                     case 'peer-disconnected':
-                        if (data.peerId === remotePeerId) {
+                        if (!isStreaming && data.peerId === remotePeerId) {
                             endVideoChat();
                             statusText.textContent = 'Peer disconnected';
                         }
                         break;
                     case 'streamer-disconnected':
-                        endVideoChat();
-                        statusText.textContent = 'Streamer disconnected';
+                        if (isViewer) {
+                            endVideoChat();
+                            statusText.textContent = 'Streamer disconnected';
+                            joinLive(); // Reconnect to another streamer
+                        }
                         break;
                     case 'banned':
                         endVideoChat();
@@ -330,10 +333,12 @@
                         }
                         break;
                     case 'requeue':
-                        endVideoChat();
-                        statusText.textContent = 'Waiting for match...';
-                        await startVideoChat();
-                        ws.send(JSON.stringify({ type: 'join' }));
+                        if (!isStreaming && !isViewer) {
+                            endVideoChat();
+                            statusText.textContent = 'Waiting for match...';
+                            await startVideoChat();
+                            ws.send(JSON.stringify({ type: 'join' }));
+                        }
                         break;
                     case 'connected-to-streamer':
                         streamerId = data.streamerId;
@@ -375,6 +380,7 @@
                     audio: true 
                 });
                 localVideo.srcObject = localStream;
+                if (isStreaming) streamVideo.srcObject = localStream;
                 statusText.textContent = 'Video started';
             } catch (error) {
                 console.error('Error accessing media devices:', error);
@@ -394,9 +400,11 @@
         async function startLive() {
             if (!localStream) await startVideoChat();
             isStreaming = true;
+            isViewer = false;
             userVideos.style.display = 'none';
             streamContainer.style.display = 'block';
             streamVideo.srcObject = localStream;
+            streamVideo.muted = true; // Mute for streamer to avoid echo
             chatInput.disabled = false;
             sendChatButton.disabled = false;
             statusText.textContent = 'Streaming live';
@@ -406,9 +414,11 @@
         async function joinLive() {
             if (!localStream) await startVideoChat();
             isViewer = true;
+            isStreaming = false;
             userVideos.style.display = 'none';
             streamContainer.style.display = 'block';
-            localVideo.srcObject = null; // Hide local video for viewers
+            localVideo.srcObject = null; // Don’t show local video for viewers
+            streamVideo.srcObject = null; // Clear until stream received
             ws.send(JSON.stringify({ type: 'join-live' }));
             statusText.textContent = 'Finding a streamer...';
         }
@@ -542,6 +552,7 @@
             });
 
             peerConnection.ontrack = event => {
+                console.log('Peer-to-peer ontrack:', event.streams[0].getTracks());
                 remoteVideo.srcObject = event.streams[0];
                 statusText.textContent = 'Connected';
             };
@@ -557,6 +568,7 @@
             };
 
             peerConnection.oniceconnectionstatechange = () => {
+                console.log('Peer ICE state:', peerConnection.iceConnectionState);
                 if (peerConnection.iceConnectionState === 'disconnected') {
                     statusText.textContent = 'Disconnected';
                 }
@@ -574,11 +586,12 @@
         }
 
         async function initiateViewerCall() {
-            if (!localStream) await startVideoChat();
             if (peerConnection) peerConnection.close();
             peerConnection = new RTCPeerConnection(configuration);
 
+            // Viewer doesn’t send tracks, only receives
             peerConnection.ontrack = event => {
+                console.log('Viewer ontrack:', event.streams[0].getTracks());
                 streamVideo.srcObject = event.streams[0];
                 streamVideo.muted = false; // Viewer hears streamer
                 statusText.textContent = 'Watching live stream';
@@ -586,6 +599,7 @@
 
             peerConnection.onicecandidate = event => {
                 if (event.candidate) {
+                    console.log('Viewer sending ICE candidate:', event.candidate);
                     ws.send(JSON.stringify({
                         type: 'candidate',
                         candidate: event.candidate,
@@ -595,14 +609,16 @@
             };
 
             peerConnection.oniceconnectionstatechange = () => {
+                console.log('Viewer ICE state:', peerConnection.iceConnectionState);
                 if (peerConnection.iceConnectionState === 'disconnected') {
                     statusText.textContent = 'Disconnected';
                 }
             };
 
             await new Promise(resolve => setTimeout(resolve, 500));
-            const offer = await peerConnection.createOffer();
+            const offer = await peerConnection.createOffer({ offerToReceiveVideo: true, offerToReceiveAudio: true });
             await peerConnection.setLocalDescription(offer);
+            console.log('Viewer sending offer:', offer.sdp.substring(0, 100));
             ws.send(JSON.stringify({
                 type: 'offer',
                 offer: offer,
@@ -617,21 +633,24 @@
             if (peerConnection) peerConnection.close();
             peerConnection = new RTCPeerConnection(configuration);
 
-            localStream.getTracks().forEach(track => {
-                peerConnection.addTrack(track, localStream);
-            });
-
-            peerConnection.ontrack = event => {
-                if (isStreaming) {
-                    // Streamer doesn’t display viewer video
-                } else {
+            if (isStreaming) {
+                localStream.getTracks().forEach(track => {
+                    peerConnection.addTrack(track, localStream);
+                });
+            } else {
+                localStream.getTracks().forEach(track => {
+                    peerConnection.addTrack(track, localStream);
+                });
+                peerConnection.ontrack = event => {
+                    console.log('Peer-to-peer ontrack:', event.streams[0].getTracks());
                     remoteVideo.srcObject = event.streams[0];
                     statusText.textContent = 'Connected';
-                }
-            };
+                };
+            }
 
             peerConnection.onicecandidate = event => {
                 if (event.candidate) {
+                    console.log('Streamer/Peer sending ICE candidate:', event.candidate);
                     ws.send(JSON.stringify({
                         type: 'candidate',
                         candidate: event.candidate,
@@ -641,6 +660,7 @@
             };
 
             peerConnection.oniceconnectionstatechange = () => {
+                console.log('Streamer/Peer ICE state:', peerConnection.iceConnectionState);
                 if (peerConnection.iceConnectionState === 'disconnected') {
                     statusText.textContent = 'Disconnected';
                 }
@@ -650,6 +670,7 @@
             await new Promise(resolve => setTimeout(resolve, 500));
             const answer = await peerConnection.createAnswer();
             await peerConnection.setLocalDescription(answer);
+            console.log('Sending answer:', answer.sdp.substring(0, 100));
             ws.send(JSON.stringify({
                 type: 'answer',
                 answer: answer,
@@ -659,15 +680,17 @@
         }
 
         async function handleAnswer(data) {
-            remotePeerId = data.peerId;
             if (peerConnection.signalingState !== 'have-local-offer') {
+                console.warn('Invalid signaling state for answer:', peerConnection.signalingState);
                 return;
             }
             await peerConnection.setRemoteDescription(new RTCSessionDescription(data.answer));
+            console.log('Answer set, signaling state:', peerConnection.signalingState);
         }
 
         async function handleCandidate(data) {
             try {
+                console.log('Handling ICE candidate:', data.candidate);
                 await peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
             } catch (error) {
                 console.error('Error adding ICE candidate:', error);
@@ -679,31 +702,32 @@
                 peerConnection.close();
                 peerConnection = null;
             }
-            if (remotePeerId) {
+            if (remotePeerId && !isStreaming && !isViewer) {
                 ws.send(JSON.stringify({
                     type: 'end-chat',
                     myPeerId: myPeerId,
                     target: remotePeerId
                 }));
             }
-            if (localStream) {
+            if (localStream && !isStreaming) {
                 localStream.getTracks().forEach(track => track.stop());
                 localStream = null;
             }
             localVideo.srcObject = null;
             remoteVideo.srcObject = null;
-            streamVideo.srcObject = null;
+            if (!isStreaming) streamVideo.srcObject = null;
             remotePeerId = null;
             streamerId = null;
-            isStreaming = false;
-            isViewer = false;
-            userVideos.style.display = 'block';
-            streamContainer.style.display = 'none';
+            if (!isStreaming) {
+                isViewer = false;
+                userVideos.style.display = 'block';
+                streamContainer.style.display = 'none';
+            }
             reportButton.disabled = true;
             chatInput.disabled = true;
             sendChatButton.disabled = true;
             chatMessages.innerHTML = '';
-            viewerCountText.textContent = '0';
+            if (!isStreaming) viewerCountText.textContent = '0';
             statusText.textContent = 'Disconnected';
         }
 
