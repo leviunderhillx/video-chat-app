@@ -149,7 +149,7 @@
 <body>
     <h1>KonnectAi</h1>
     <div class="button-container">
-        <button onclick="startVideoChat()">Start Video</button>
+        <button id="startVideoButton" onclick="startVideoChat()">Start Video</button>
         <button onclick="connectRandom()">Connect Random</button>
         <button onclick="reportPeer()" id="reportButton" disabled>Report User</button>
         <button onclick="endVideoChat()">End Chat</button>
@@ -186,6 +186,7 @@
         let myPeerId;
         let remotePeerId;
         let isAdmin = false;
+        let iceCandidateQueue = [];
 
         const configuration = {
             iceServers: [
@@ -215,6 +216,7 @@
         const adminPeers = document.getElementById('admin-peers');
         const canvas = document.getElementById('screenshot-canvas');
         const ctx = canvas.getContext('2d');
+        const startVideoButton = document.getElementById('startVideoButton');
 
         const SIGNALING_SERVER_URL = 'wss://video-chat-server-t6df.onrender.com';
         connectWebSocket();
@@ -300,6 +302,7 @@
                         reportButton.disabled = true;
                         chatInput.disabled = true;
                         sendChatButton.disabled = true;
+                        iceCandidateQueue = [];
                         await startVideoChat();
                         ws.send(JSON.stringify({ type: 'join' }));
                         break;
@@ -330,6 +333,7 @@
                 localVideo.srcObject = localStream;
                 statusText.textContent = 'Video started';
                 console.log('Started local stream with tracks:', localStream.getTracks().map(t => `${t.kind}:${t.id}`));
+                startVideoButton.style.display = 'none'; // Hide the button after clicking
             } catch (error) {
                 console.error('Error accessing media devices:', error.name, error.message);
                 statusText.textContent = `Error starting video: ${error.name}`;
@@ -514,7 +518,6 @@
             };
 
             try {
-                await new Promise(resolve => setTimeout(resolve, 500)); // Ensure tracks are ready
                 const offer = await peerConnection.createOffer();
                 await peerConnection.setLocalDescription(offer);
                 console.log('Initiator sent offer:', offer.sdp.substring(0, 100) + '...');
@@ -527,7 +530,7 @@
             } catch (error) {
                 console.error('Error creating/sending offer:', error);
                 peerConnection.close();
-                await initiateCall(); // Retry on failure
+                await initiateCall();
             }
         }
 
@@ -573,6 +576,8 @@
                 console.log('Receiver ICE state:', peerConnection.iceConnectionState);
                 if (peerConnection.iceConnectionState === 'disconnected') {
                     statusText.textContent = 'Disconnected';
+                } else if (peerConnection.iceConnectionState === 'connected') {
+                    statusText.textContent = 'Connected';
                 }
             };
 
@@ -581,7 +586,16 @@
             };
 
             await peerConnection.setRemoteDescription(new RTCSessionDescription(data.offer));
-            await new Promise(resolve => setTimeout(resolve, 500)); // Ensure tracks are ready
+            iceCandidateQueue.forEach(async candidate => {
+                try {
+                    await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+                    console.log('Applied queued ICE candidate:', candidate.candidate);
+                } catch (error) {
+                    console.error('Error applying queued ICE candidate:', error);
+                }
+            });
+            iceCandidateQueue = [];
+
             const answer = await peerConnection.createAnswer();
             await peerConnection.setLocalDescription(answer);
             console.log('Receiver sent answer:', answer.sdp.substring(0, 100) + '...');
@@ -605,9 +619,18 @@
                 try {
                     await peerConnection.setRemoteDescription(new RTCSessionDescription(data.answer));
                     console.log('Initiator set remote description, state:', peerConnection.signalingState);
+                    iceCandidateQueue.forEach(async candidate => {
+                        try {
+                            await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+                            console.log('Applied queued ICE candidate:', candidate.candidate);
+                        } catch (error) {
+                            console.error('Error applying queued ICE candidate:', error);
+                        }
+                    });
+                    iceCandidateQueue = [];
                 } catch (error) {
                     console.error('Error setting remote description:', error);
-                    await initiateCall(); // Restart if setting fails
+                    await initiateCall();
                 }
             } else {
                 console.warn('Received answer in unexpected state:', peerConnection.signalingState);
@@ -622,6 +645,7 @@
             try {
                 if (!peerConnection || !peerConnection.remoteDescription) {
                     console.log('Queueing ICE candidate until remote description is set:', data.candidate.candidate);
+                    iceCandidateQueue.push(data.candidate);
                     return;
                 }
                 console.log('Handling ICE candidate:', data.candidate.candidate);
@@ -655,6 +679,7 @@
             sendChatButton.disabled = true;
             chatMessages.innerHTML = '';
             statusText.textContent = 'Waiting for match...';
+            iceCandidateQueue = [];
             console.log('Chat ended, rejoining pool');
             startVideoChat().then(() => {
                 ws.send(JSON.stringify({ type: 'join' }));
