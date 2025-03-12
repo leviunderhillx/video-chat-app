@@ -31,12 +31,12 @@
             border: none;
             border-radius: 5px;
             cursor: pointer;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); /* Drop shadow for buttons */
-            transition: transform 0.2s, box-shadow 0.2s; /* Animation for hover */
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            transition: transform 0.2s, box-shadow 0.2s;
         }
         button:hover {
             background-color: #45a049;
-            transform: translateY(-2px); /* Slight lift on hover */
+            transform: translateY(-2px);
             box-shadow: 0 6px 8px rgba(0, 0, 0, 0.2);
         }
         #status {
@@ -46,28 +46,30 @@
         }
         .video-container {
             display: flex;
-            gap: 20px;
-            padding: 20px;
+            gap: 30px; /* Increased gap for breathing room */
+            padding: 30px; /* More padding for a larger feel */
             background-color: #fff;
             border-radius: 10px;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1); /* Drop shadow for video box */
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
             margin: 20px 0;
             flex-wrap: wrap;
             justify-content: center;
+            width: 90%; /* Wider container */
+            max-width: 1200px; /* Cap for larger screens */
         }
         video {
-            width: 45%;
-            max-width: 400px; /* Limit video size for better layout */
+            width: 48%; /* Slightly larger proportion */
+            max-width: 600px; /* Increased from 400px for bigger videos */
             background-color: #000;
             border-radius: 5px;
         }
         #chat-container {
-            width: 90%; /* Wider to span screen */
-            max-width: 1000px; /* Cap width for larger screens */
+            width: 90%;
+            max-width: 1000px;
             margin-top: 20px;
         }
         #chat-messages {
-            height: 150px; /* Less tall */
+            height: 150px;
             overflow-y: auto;
             border: 1px solid #ccc;
             padding: 10px;
@@ -90,10 +92,16 @@
             position: absolute;
             top: 10px;
             right: 10px;
-            visibility: hidden;
+            width: 100px; /* Fixed width to ensure clickable area */
+            height: 40px; /* Fixed height to match button */
+        }
+        #admin-login button {
+            visibility: hidden; /* Only the button is invisible */
+            width: 100%;
+            height: 100%;
         }
         #admin-container {
-            display: none;
+            display: none; /* Hidden until clicked */
             margin-top: 20px;
             width: 90%;
             max-width: 1000px;
@@ -478,7 +486,7 @@
 
             peerConnection.oniceconnectionstatechange = () => {
                 console.log('Initiator ICE state:', peerConnection.iceConnectionState);
-                if (peerConnection.iceConnectionstate === 'disconnected') {
+                if (peerConnection.iceConnectionState === 'disconnected') {
                     statusText.textContent = 'Disconnected';
                 }
             };
