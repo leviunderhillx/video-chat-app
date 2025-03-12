@@ -245,7 +245,7 @@
                         reportButton.disabled = false;
                         chatInput.disabled = false;
                         sendChatButton.disabled = false;
-                        initiateCall();
+                        await initiateCall();
                         break;
                     case 'chat':
                         console.log('Received chat from:', data.sender, 'Message:', data.message);
@@ -507,7 +507,7 @@
 
             peerConnection.oniceconnectionstatechange = () => {
                 console.log('Initiator ICE state:', peerConnection.iceConnectionState);
-                if (peerConnection.iceConnectionState === 'disconnected') {
+                if (peerConnection.iceConnectionState === 'disconnected' || peerConnection.iceConnectionState === 'failed') {
                     statusText.textContent = 'Disconnected';
                     endVideoChat();
                 } else if (peerConnection.iceConnectionState === 'connected') {
@@ -571,9 +571,9 @@
                 }
             };
 
-            peerConnection.oniceconnectionstatechange = () => {
+            peerConnection.oniceconnectionStatechange = () => {
                 console.log('Receiver ICE state:', peerConnection.iceConnectionState);
-                if (peerConnection.iceConnectionstate === 'disconnected') {
+                if (peerConnection.iceConnectionState === 'disconnected' || peerConnection.iceConnectionState === 'failed') {
                     statusText.textContent = 'Disconnected';
                     endVideoChat();
                 } else if (peerConnection.iceConnectionState === 'connected') {
@@ -585,26 +585,31 @@
                 console.log('Receiver signaling state:', peerConnection.signalingState);
             };
 
-            await peerConnection.setRemoteDescription(new RTCSessionDescription(data.offer));
-            iceCandidateQueue.forEach(async candidate => {
-                try {
-                    await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
-                    console.log('Applied queued ICE candidate:', candidate.candidate);
-                } catch (error) {
-                    console.error('Error applying queued ICE candidate:', error);
-                }
-            });
-            iceCandidateQueue = [];
+            try {
+                await peerConnection.setRemoteDescription(new RTCSessionDescription(data.offer));
+                iceCandidateQueue.forEach(async candidate => {
+                    try {
+                        await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+                        console.log('Applied queued ICE candidate:', candidate.candidate);
+                    } catch (error) {
+                        console.error('Error applying queued ICE candidate:', error);
+                    }
+                });
+                iceCandidateQueue = [];
 
-            const answer = await peerConnection.createAnswer();
-            await peerConnection.setLocalDescription(answer);
-            console.log('Receiver sent answer:', answer.sdp.substring(0, 100) + '...');
-            ws.send(JSON.stringify({
-                type: 'answer',
-                answer: answer,
-                target: remotePeerId,
-                peerId: myPeerId
-            }));
+                const answer = await peerConnection.createAnswer();
+                await peerConnection.setLocalDescription(answer);
+                console.log('Receiver sent answer:', answer.sdp.substring(0, 100) + '...');
+                ws.send(JSON.stringify({
+                    type: 'answer',
+                    answer: answer,
+                    target: remotePeerId,
+                    peerId: myPeerId
+                }));
+            } catch (error) {
+                console.error('Error handling offer:', error);
+                cleanupConnection();
+            }
         }
 
         async function handleAnswer(data) {
@@ -615,8 +620,8 @@
                 return;
             }
 
-            if (peerConnection.signalingState === 'have-local-offer') {
-                try {
+            try {
+                if (peerConnection.signalingState === 'have-local-offer') {
                     await peerConnection.setRemoteDescription(new RTCSessionDescription(data.answer));
                     console.log('Initiator set remote description, state:', peerConnection.signalingState);
                     iceCandidateQueue.forEach(async candidate => {
@@ -628,17 +633,13 @@
                         }
                     });
                     iceCandidateQueue = [];
-                } catch (error) {
-                    console.error('Error setting remote description:', error);
-                    cleanupConnection();
-                    await initiateCall();
+                } else {
+                    console.warn('Received answer in unexpected state:', peerConnection.signalingState);
                 }
-            } else {
-                console.warn('Received answer in unexpected state:', peerConnection.signalingState);
-                if (peerConnection.signalingState !== 'stable') {
-                    cleanupConnection();
-                    await initiateCall();
-                }
+            } catch (error) {
+                console.error('Error setting remote description:', error);
+                cleanupConnection();
+                await initiateCall();
             }
         }
 
@@ -685,7 +686,7 @@
             localVideo.srcObject = null;
             cleanupConnection();
             statusText.textContent = 'Disconnected';
-            startVideoButton.style.display = 'block'; // Show "Start Video" button again
+            startVideoButton.style.display = 'block';
             console.log('Chat ended, not rejoining pool');
         }
 
