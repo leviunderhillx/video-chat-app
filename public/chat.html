@@ -155,7 +155,7 @@
         <button onclick="endVideoChat()">End Chat</button>
     </div>
     <div id="status">Status: <span id="statusText">Disconnected</span></div>
-    
+
     <div class="video-container" id="user-videos">
         <video id="localVideo" autoplay playsinline muted></video>
         <video id="remoteVideo" autoplay playsinline></video>
@@ -324,14 +324,13 @@
                     localStream.getTracks().forEach(track => track.stop());
                 }
                 localStream = await navigator.mediaDevices.getUserMedia({ 
-                    video: true, 
+                    video: { facingMode: "user" }, // Ensure the correct camera is used
                     audio: true 
                 });
                 localVideo.srcObject = localStream;
                 statusText.textContent = 'Video started';
-                console.log('Started local stream with tracks:', localStream.getTracks().map(t => `${t.kind}:${t.id}`));
             } catch (error) {
-                console.error('Error accessing media devices:', error.name, error.message);
+                console.error('Error accessing media devices:', error);
                 statusText.textContent = `Error starting video: ${error.name}`;
             }
         }
