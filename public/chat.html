@@ -23,7 +23,6 @@
             justify-content: center;
             gap: 15px;
             margin-bottom: 20px;
-            flex-wrap: wrap;
         }
         button {
             padding: 10px 20px;
@@ -45,63 +44,35 @@
             font-size: 14px;
             color: #666;
         }
-        #viewer-count {
-            margin-top: 10px;
-            font-size: 16px;
-            color: #333;
-            display: none; /* Hidden by default */
-        }
         .video-container {
             display: flex;
-            gap: 20px;
-            padding: 20px;
+            gap: 20px; /* Reduced gap for better fit */
+            padding: 20px; /* Adjusted padding */
             background-color: #fff;
             border-radius: 10px;
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
             margin: 20px 0;
             flex-wrap: wrap;
             justify-content: center;
-            width: 95%;
-            max-width: 1400px;
-        }
-        .single-video-container {
-            padding: 20px;
-            background-color: #fff;
-            border-radius: 10px;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-            margin: 20px 0;
-            width: 95%;
-            max-width: 1400px;
-            text-align: center;
+            width: 95%; /* Nearly full width */
+            max-width: 1400px; /* Cap for larger screens */
         }
         video {
-            width: 45vw;
-            max-width: 640px;
-            height: auto;
+            width: 45vw; /* 45% of viewport width */
+            max-width: 640px; /* Cap at Omegle’s max size */
+            height: auto; /* Maintain aspect ratio */
             background-color: #000;
             border-radius: 5px;
         }
-        #stream-video {
-            width: 60vw;
-            max-width: 960px;
-            height: auto;
-        }
-        @media (max-width: 768px) {
+        @media (max-width: 768px) { /* Tablets and smaller */
             video {
-                width: 80vw;
-                max-width: 100%;
-            }
-            #stream-video {
-                width: 90vw;
-                max-width: 100%;
+                width: 80vw; /* Larger on smaller screens */
+                max-width: 100%; /* Full width if needed */
             }
         }
-        @media (max-width: 480px) {
+        @media (max-width: 480px) { /* Phones */
             video {
-                width: 90vw;
-            }
-            #stream-video {
-                width: 95vw;
+                width: 90vw; /* Nearly full width on phones */
             }
         }
         #chat-container {
@@ -180,20 +151,14 @@
     <div class="button-container">
         <button onclick="startVideoChat()">Start Video</button>
         <button onclick="connectRandom()">Connect Random</button>
-        <button onclick="startLive()">Start Live</button>
-        <button onclick="joinLive()">Join Live</button>
         <button onclick="reportPeer()" id="reportButton" disabled>Report User</button>
         <button onclick="endVideoChat()">End Chat</button>
     </div>
     <div id="status">Status: <span id="statusText">Disconnected</span></div>
-    <div id="viewer-count">Viewers: <span id="viewerCountText">0</span></div>
     
     <div class="video-container" id="user-videos">
         <video id="localVideo" autoplay playsinline muted></video>
         <video id="remoteVideo" autoplay playsinline></video>
-    </div>
-    <div class="single-video-container" id="stream-container" style="display: none;">
-        <video id="stream-video" autoplay playsinline></video>
     </div>
 
     <div id="chat-container">
@@ -220,10 +185,7 @@
         let ws;
         let myPeerId;
         let remotePeerId;
-        let streamerId;
         let isAdmin = false;
-        let isStreaming = false;
-        let isViewer = false;
 
         const configuration = {
             iceServers: [
@@ -244,18 +206,13 @@
 
         const localVideo = document.getElementById('localVideo');
         const remoteVideo = document.getElementById('remoteVideo');
-        const streamVideo = document.getElementById('stream-video');
         const statusText = document.getElementById('statusText');
-        const viewerCountText = document.getElementById('viewerCountText');
-        const viewerCount = document.getElementById('viewer-count');
         const reportButton = document.getElementById('reportButton');
         const chatInput = document.getElementById('chat-input');
         const sendChatButton = document.getElementById('send-chat');
         const chatMessages = document.getElementById('chat-messages');
         const adminContainer = document.getElementById('admin-container');
         const adminPeers = document.getElementById('admin-peers');
-        const userVideos = document.getElementById('user-videos');
-        const streamContainer = document.getElementById('stream-container');
         const canvas = document.getElementById('screenshot-canvas');
         const ctx = canvas.getContext('2d');
 
@@ -281,6 +238,7 @@
                         break;
                     case 'matched':
                         remotePeerId = data.peerId;
+                        console.log('Matched with:', remotePeerId);
                         statusText.textContent = 'Matched with peer';
                         reportButton.disabled = false;
                         chatInput.disabled = false;
@@ -288,31 +246,28 @@
                         initiateCall();
                         break;
                     case 'chat':
-                        addChatMessage(data.message, data.sender === myPeerId ? 'You' : (isStreaming ? `Viewer ${data.sender}` : 'Them'));
+                        console.log('Received chat from:', data.sender, 'Message:', data.message);
+                        addChatMessage(data.message, data.sender === myPeerId ? 'You' : 'Them');
                         break;
                     case 'offer':
                         remotePeerId = data.peerId;
+                        console.log('Received offer from:', remotePeerId);
                         await handleOffer(data);
                         break;
                     case 'answer':
-                        remotePeerId = data.peerId || remotePeerId;
+                        remotePeerId = remotePeerId || data.peerId;
+                        console.log('Received answer from:', remotePeerId);
                         await handleAnswer(data);
                         break;
                     case 'candidate':
-                        remotePeerId = data.peerId || remotePeerId;
+                        remotePeerId = remotePeerId || data.peerId;
+                        console.log('Received ICE candidate from:', remotePeerId, data.candidate.candidate);
                         await handleCandidate(data);
                         break;
                     case 'peer-disconnected':
-                        if (!isStreaming && data.peerId === remotePeerId) {
+                        if (data.peerId === remotePeerId) {
                             endVideoChat();
                             statusText.textContent = 'Peer disconnected';
-                        }
-                        break;
-                    case 'streamer-disconnected':
-                        if (isViewer) {
-                            endVideoChat();
-                            statusText.textContent = 'Streamer disconnected';
-                            joinLive();
                         }
                         break;
                     case 'banned':
@@ -335,28 +290,18 @@
                         }
                         break;
                     case 'requeue':
-                        if (!isStreaming && !isViewer) {
-                            endVideoChat();
-                            statusText.textContent = 'Waiting for match...';
-                            await startVideoChat();
-                            ws.send(JSON.stringify({ type: 'join' }));
-                        }
-                        break;
-                    case 'connected-to-streamer':
-                        streamerId = data.streamerId;
-                        statusText.textContent = 'Connected to streamer';
-                        chatInput.disabled = false;
-                        sendChatButton.disabled = false;
-                        userVideos.style.display = 'none';
-                        streamContainer.style.display = 'block';
-                        viewerCount.style.display = 'block';
-                        initiateViewerCall();
-                        break;
-                    case 'no-streamers':
-                        statusText.textContent = 'No streamers available';
-                        break;
-                    case 'viewer-count':
-                        viewerCountText.textContent = data.count;
+                        console.log('Requeued to waiting pool');
+                        statusText.textContent = 'Waiting for match...';
+                        if (peerConnection) peerConnection.close();
+                        peerConnection = null;
+                        remoteVideo.srcObject = null;
+                        remotePeerId = null;
+                        chatMessages.innerHTML = '';
+                        reportButton.disabled = true;
+                        chatInput.disabled = true;
+                        sendChatButton.disabled = true;
+                        await startVideoChat();
+                        ws.send(JSON.stringify({ type: 'join' }));
                         break;
                 }
             };
@@ -383,10 +328,10 @@
                     audio: true 
                 });
                 localVideo.srcObject = localStream;
-                if (isStreaming) streamVideo.srcObject = localStream;
                 statusText.textContent = 'Video started';
+                console.log('Started local stream with tracks:', localStream.getTracks().map(t => `${t.kind}:${t.id}`));
             } catch (error) {
-                console.error('Error accessing media devices:', error);
+                console.error('Error accessing media devices:', error.name, error.message);
                 statusText.textContent = `Error starting video: ${error.name}`;
             }
         }
@@ -396,36 +341,14 @@
                 statusText.textContent = 'Please start video first';
                 return;
             }
+            if (!myPeerId) {
+                statusText.textContent = 'Not connected to server';
+                console.log('WebSocket state:', ws.readyState);
+                return;
+            }
             ws.send(JSON.stringify({ type: 'join' }));
             statusText.textContent = 'Waiting for match...';
-        }
-
-        async function startLive() {
-            if (!localStream) await startVideoChat();
-            isStreaming = true;
-            isViewer = false;
-            userVideos.style.display = 'none';
-            streamContainer.style.display = 'block';
-            streamVideo.srcObject = localStream;
-            streamVideo.muted = true;
-            chatInput.disabled = false;
-            sendChatButton.disabled = false;
-            viewerCount.style.display = 'block';
-            statusText.textContent = 'Streaming live';
-            ws.send(JSON.stringify({ type: 'start-live' }));
-        }
-
-        function joinLive() {
-            isViewer = true;
-            isStreaming = false;
-            userVideos.style.display = 'none';
-            streamContainer.style.display = 'block';
-            localVideo.srcObject = null;
-            streamVideo.srcObject = null;
-            ws.send(JSON.stringify({ type: 'join-live' }));
-            statusText.textContent = 'Finding a streamer...';
-            viewerCount.style.display = 'block';
-            initiateViewerCall();
+            console.log('Requesting random match');
         }
 
         function reportPeer() {
@@ -435,29 +358,24 @@
                     reportedPeerId: remotePeerId,
                     myPeerId: myPeerId
                 }));
-                statusText.textContent = 'User reported';
+                statusText.textContent = 'User reported, returning to pool';
+                console.log('Reported peer:', remotePeerId);
             }
         }
 
         function sendChatMessage() {
             const message = chatInput.value.trim();
-            if (message) {
-                if (isViewer && streamerId) {
-                    ws.send(JSON.stringify({
-                        type: 'chat',
-                        message: message,
-                        target: streamerId
-                    }));
-                    addChatMessage(message, 'You');
-                } else if (remotePeerId) {
-                    ws.send(JSON.stringify({
-                        type: 'chat',
-                        message: message,
-                        target: remotePeerId
-                    }));
-                    addChatMessage(message, 'You');
-                }
+            if (message && remotePeerId) {
+                console.log('Sending chat to:', remotePeerId, 'Message:', message);
+                ws.send(JSON.stringify({
+                    type: 'chat',
+                    message: message,
+                    target: remotePeerId
+                }));
+                addChatMessage(message, 'You');
                 chatInput.value = '';
+            } else {
+                console.log('Cannot send chat: remotePeerId missing:', remotePeerId);
             }
         }
 
@@ -518,15 +436,16 @@
 
         function sendScreenshot(requester) {
             if (!localStream) return;
-            canvas.width = localVideo.videoWidth || streamVideo.videoWidth;
-            canvas.height = localVideo.videoHeight || streamVideo.videoHeight;
-            ctx.drawImage(localVideo.srcObject ? localVideo : streamVideo, 0, 0, canvas.width, canvas.height);
+            canvas.width = localVideo.videoWidth;
+            canvas.height = localVideo.videoHeight;
+            ctx.drawImage(localVideo, 0, 0, canvas.width, canvas.height);
             const screenshot = canvas.toDataURL('image/jpeg', 0.5);
             ws.send(JSON.stringify({
                 type: 'screenshot-response',
                 requester: requester,
                 screenshot: screenshot.split(',')[1]
             }));
+            console.log('Sent screenshot to:', requester);
         }
 
         function displayScreenshot(peerId, screenshot) {
@@ -545,25 +464,34 @@
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
+            console.log(`Saved screenshot locally for peer: ${peerId}`);
         }
 
         async function initiateCall() {
-            if (!localStream) await startVideoChat();
-            if (peerConnection) peerConnection.close();
+            if (!localStream) {
+                await startVideoChat();
+            }
+            if (peerConnection) {
+                peerConnection.close();
+                peerConnection = null;
+            }
             peerConnection = new RTCPeerConnection(configuration);
+            console.log('Initiator created peerConnection, state:', peerConnection.signalingState);
 
             localStream.getTracks().forEach(track => {
+                console.log('Initiator adding track:', track.kind, track.id);
                 peerConnection.addTrack(track, localStream);
             });
 
             peerConnection.ontrack = event => {
-                console.log('Peer-to-peer ontrack:', event.streams[0].getTracks());
+                console.log('Initiator received remote stream, tracks:', event.streams[0].getTracks().map(t => `${t.kind}:${t.id}`));
                 remoteVideo.srcObject = event.streams[0];
                 statusText.textContent = 'Connected';
             };
 
             peerConnection.onicecandidate = event => {
                 if (event.candidate) {
+                    console.log('Initiator sending ICE candidate:', event.candidate.candidate);
                     ws.send(JSON.stringify({
                         type: 'candidate',
                         candidate: event.candidate,
@@ -573,15 +501,20 @@
             };
 
             peerConnection.oniceconnectionstatechange = () => {
-                console.log('Peer ICE state:', peerConnection.iceConnectionState);
+                console.log('Initiator ICE state:', peerConnection.iceConnectionState);
                 if (peerConnection.iceConnectionState === 'disconnected') {
                     statusText.textContent = 'Disconnected';
                 }
             };
 
-            await new Promise(resolve => setTimeout(resolve, 500));
+            peerConnection.onsignalingstatechange = () => {
+                console.log('Initiator signaling state:', peerConnection.signalingState);
+            };
+
+            await new Promise(resolve => setTimeout(resolve, 500)); // Ensure tracks are ready
             const offer = await peerConnection.createOffer();
             await peerConnection.setLocalDescription(offer);
+            console.log('Initiator sent offer:', offer.sdp.substring(0, 100) + '...');
             ws.send(JSON.stringify({
                 type: 'offer',
                 offer: offer,
@@ -590,71 +523,36 @@
             }));
         }
 
-        async function initiateViewerCall() {
-            if (peerConnection) peerConnection.close();
-            peerConnection = new RTCPeerConnection(configuration);
-
-            peerConnection.ontrack = event => {
-                console.log('Viewer ontrack:', event.streams[0].getTracks());
-                streamVideo.srcObject = event.streams[0];
-                streamVideo.muted = false;
-                statusText.textContent = 'Watching live stream';
-            };
-
-            peerConnection.onicecandidate = event => {
-                if (event.candidate) {
-                    console.log('Viewer sending ICE candidate:', event.candidate);
-                    ws.send(JSON.stringify({
-                        type: 'candidate',
-                        candidate: event.candidate,
-                        target: streamerId
-                    }));
-                }
-            };
-
-            peerConnection.oniceconnectionstatechange = () => {
-                console.log('Viewer ICE state:', peerConnection.iceConnectionState);
-                if (peerConnection.iceConnectionState === 'disconnected') {
-                    statusText.textContent = 'Disconnected';
-                }
-            };
-
-            await new Promise(resolve => setTimeout(resolve, 500));
-            const offer = await peerConnection.createOffer({ offerToReceiveVideo: true, offerToReceiveAudio: true });
-            await peerConnection.setLocalDescription(offer);
-            console.log('Viewer sending offer:', offer.sdp.substring(0, 100));
-            ws.send(JSON.stringify({
-                type: 'offer',
-                offer: offer,
-                target: streamerId,
-                peerId: myPeerId
-            }));
-        }
-
         async function handleOffer(data) {
             remotePeerId = data.peerId;
-            if (!localStream && !isViewer) await startVideoChat();
-            if (peerConnection) peerConnection.close();
-            peerConnection = new RTCPeerConnection(configuration);
-
-            if (isStreaming) {
-                localStream.getTracks().forEach(track => {
-                    peerConnection.addTrack(track, localStream);
-                });
-            } else if (!isViewer) {
-                localStream.getTracks().forEach(track => {
-                    peerConnection.addTrack(track, localStream);
-                });
-                peerConnection.ontrack = event => {
-                    console.log('Peer-to-peer ontrack:', event.streams[0].getTracks());
-                    remoteVideo.srcObject = event.streams[0];
-                    statusText.textContent = 'Connected';
-                };
+            console.log('Receiver handling offer from:', remotePeerId);
+            reportButton.disabled = false;
+            chatInput.disabled = false;
+            sendChatButton.disabled = false;
+            if (!localStream) {
+                await startVideoChat();
             }
+            if (peerConnection) {
+                peerConnection.close();
+                peerConnection = null;
+            }
+            peerConnection = new RTCPeerConnection(configuration);
+            console.log('Receiver created peerConnection, state:', peerConnection.signalingState);
+
+            localStream.getTracks().forEach(track => {
+                console.log('Receiver adding track:', track.kind, track.id);
+                peerConnection.addTrack(track, localStream);
+            });
+
+            peerConnection.ontrack = event => {
+                console.log('Receiver received remote stream, tracks:', event.streams[0].getTracks().map(t => `${t.kind}:${t.id}`));
+                remoteVideo.srcObject = event.streams[0];
+                statusText.textContent = 'Connected';
+            };
 
             peerConnection.onicecandidate = event => {
                 if (event.candidate) {
-                    console.log('Streamer/Peer sending ICE candidate:', event.candidate);
+                    console.log('Receiver sending ICE candidate:', event.candidate.candidate);
                     ws.send(JSON.stringify({
                         type: 'candidate',
                         candidate: event.candidate,
@@ -664,17 +562,21 @@
             };
 
             peerConnection.oniceconnectionstatechange = () => {
-                console.log('Streamer/Peer ICE state:', peerConnection.iceConnectionState);
+                console.log('Receiver ICE state:', peerConnection.iceConnectionState);
                 if (peerConnection.iceConnectionState === 'disconnected') {
                     statusText.textContent = 'Disconnected';
                 }
             };
 
+            peerConnection.onsignalingstatechange = () => {
+                console.log('Receiver signaling state:', peerConnection.signalingState);
+            };
+
             await peerConnection.setRemoteDescription(new RTCSessionDescription(data.offer));
-            await new Promise(resolve => setTimeout(resolve, 500));
+            await new Promise(resolve => setTimeout(resolve, 500)); // Ensure tracks are ready
             const answer = await peerConnection.createAnswer();
             await peerConnection.setLocalDescription(answer);
-            console.log('Sending answer:', answer.sdp.substring(0, 100));
+            console.log('Receiver sent answer:', answer.sdp.substring(0, 100) + '...');
             ws.send(JSON.stringify({
                 type: 'answer',
                 answer: answer,
@@ -684,17 +586,22 @@
         }
 
         async function handleAnswer(data) {
+            console.log('Initiator handling answer from:', remotePeerId);
             if (peerConnection.signalingState !== 'have-local-offer') {
                 console.warn('Invalid signaling state for answer:', peerConnection.signalingState);
+                if (peerConnection) peerConnection.close();
+                peerConnection = new RTCPeerConnection(configuration);
+                localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
+                await initiateCall(); // Restart negotiation
                 return;
             }
             await peerConnection.setRemoteDescription(new RTCSessionDescription(data.answer));
-            console.log('Answer set, signaling state:', peerConnection.signalingState);
+            console.log('Initiator set remote description, state:', peerConnection.signalingState);
         }
 
         async function handleCandidate(data) {
             try {
-                console.log('Handling ICE candidate:', data.candidate);
+                console.log('Handling ICE candidate:', data.candidate.candidate);
                 await peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
             } catch (error) {
                 console.error('Error adding ICE candidate:', error);
@@ -702,38 +609,33 @@
         }
 
         function endVideoChat() {
-            if (peerConnection) {
-                peerConnection.close();
-                peerConnection = null;
-            }
-            if (remotePeerId && !isStreaming && !isViewer) {
+            if (remotePeerId) {
                 ws.send(JSON.stringify({
                     type: 'end-chat',
                     myPeerId: myPeerId,
                     target: remotePeerId
                 }));
             }
-            if (localStream && !isStreaming) {
+            if (peerConnection) {
+                peerConnection.close();
+                peerConnection = null;
+            }
+            if (localStream) {
                 localStream.getTracks().forEach(track => track.stop());
                 localStream = null;
             }
             localVideo.srcObject = null;
             remoteVideo.srcObject = null;
-            if (!isStreaming) streamVideo.srcObject = null;
             remotePeerId = null;
-            streamerId = null;
-            if (!isStreaming) {
-                isViewer = false;
-                userVideos.style.display = 'block';
-                streamContainer.style.display = 'none';
-                viewerCount.style.display = 'none';
-            }
             reportButton.disabled = true;
             chatInput.disabled = true;
             sendChatButton.disabled = true;
             chatMessages.innerHTML = '';
-            if (!isStreaming) viewerCountText.textContent = '0';
-            statusText.textContent = 'Disconnected';
+            statusText.textContent = 'Waiting for match...';
+            console.log('Chat ended, rejoining pool');
+            startVideoChat().then(() => {
+                ws.send(JSON.stringify({ type: 'join' }));
+            });
         }
 
         chatInput.addEventListener('keypress', (e) => {
