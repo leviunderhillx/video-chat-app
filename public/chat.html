@@ -49,6 +49,7 @@
             margin-top: 10px;
             font-size: 16px;
             color: #333;
+            display: none; /* Hidden by default */
         }
         .video-container {
             display: flex;
@@ -246,6 +247,7 @@
         const streamVideo = document.getElementById('stream-video');
         const statusText = document.getElementById('statusText');
         const viewerCountText = document.getElementById('viewerCountText');
+        const viewerCount = document.getElementById('viewer-count');
         const reportButton = document.getElementById('reportButton');
         const chatInput = document.getElementById('chat-input');
         const sendChatButton = document.getElementById('send-chat');
@@ -310,7 +312,7 @@
                         if (isViewer) {
                             endVideoChat();
                             statusText.textContent = 'Streamer disconnected';
-                            joinLive(); // Reconnect to another streamer
+                            joinLive();
                         }
                         break;
                     case 'banned':
@@ -347,6 +349,7 @@
                         sendChatButton.disabled = false;
                         userVideos.style.display = 'none';
                         streamContainer.style.display = 'block';
+                        viewerCount.style.display = 'block';
                         initiateViewerCall();
                         break;
                     case 'no-streamers':
@@ -404,23 +407,25 @@
             userVideos.style.display = 'none';
             streamContainer.style.display = 'block';
             streamVideo.srcObject = localStream;
-            streamVideo.muted = true; // Mute for streamer to avoid echo
+            streamVideo.muted = true;
             chatInput.disabled = false;
             sendChatButton.disabled = false;
+            viewerCount.style.display = 'block';
             statusText.textContent = 'Streaming live';
             ws.send(JSON.stringify({ type: 'start-live' }));
         }
 
-        async function joinLive() {
-            if (!localStream) await startVideoChat();
+        function joinLive() {
             isViewer = true;
             isStreaming = false;
             userVideos.style.display = 'none';
             streamContainer.style.display = 'block';
-            localVideo.srcObject = null; // Don’t show local video for viewers
-            streamVideo.srcObject = null; // Clear until stream received
+            localVideo.srcObject = null;
+            streamVideo.srcObject = null;
             ws.send(JSON.stringify({ type: 'join-live' }));
             statusText.textContent = 'Finding a streamer...';
+            viewerCount.style.display = 'block';
+            initiateViewerCall();
         }
 
         function reportPeer() {
@@ -589,11 +594,10 @@
             if (peerConnection) peerConnection.close();
             peerConnection = new RTCPeerConnection(configuration);
 
-            // Viewer doesn’t send tracks, only receives
             peerConnection.ontrack = event => {
                 console.log('Viewer ontrack:', event.streams[0].getTracks());
                 streamVideo.srcObject = event.streams[0];
-                streamVideo.muted = false; // Viewer hears streamer
+                streamVideo.muted = false;
                 statusText.textContent = 'Watching live stream';
             };
 
@@ -629,7 +633,7 @@
 
         async function handleOffer(data) {
             remotePeerId = data.peerId;
-            if (!localStream) await startVideoChat();
+            if (!localStream && !isViewer) await startVideoChat();
             if (peerConnection) peerConnection.close();
             peerConnection = new RTCPeerConnection(configuration);
 
@@ -637,7 +641,7 @@
                 localStream.getTracks().forEach(track => {
                     peerConnection.addTrack(track, localStream);
                 });
-            } else {
+            } else if (!isViewer) {
                 localStream.getTracks().forEach(track => {
                     peerConnection.addTrack(track, localStream);
                 });
@@ -722,6 +726,7 @@
                 isViewer = false;
                 userVideos.style.display = 'block';
                 streamContainer.style.display = 'none';
+                viewerCount.style.display = 'none';
             }
             reportButton.disabled = true;
             chatInput.disabled = true;
