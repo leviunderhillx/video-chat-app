@@ -206,7 +206,7 @@
                         break;
                     case 'candidate':
                         remotePeerId = remotePeerId || data.peerId;
-                        console.log('Received ICE candidate from:', remotePeerId);
+                        console.log('Received ICE candidate from:', remotePeerId, data.candidate.candidate);
                         await handleCandidate(data);
                         break;
                     case 'peer-disconnected':
@@ -236,7 +236,14 @@
                     case 'requeue':
                         console.log('Requeued to waiting pool');
                         statusText.textContent = 'Waiting for match...';
-                        resetConnection();
+                        if (peerConnection) peerConnection.close();
+                        peerConnection = null;
+                        remoteVideo.srcObject = null;
+                        remotePeerId = null;
+                        chatMessages.innerHTML = '';
+                        reportButton.disabled = true;
+                        chatInput.disabled = true;
+                        sendChatButton.disabled = true;
                         await startVideoChat();
                         ws.send(JSON.stringify({ type: 'join' }));
                         break;
@@ -258,11 +265,7 @@
         async function startVideoChat() {
             try {
                 if (localStream) {
-                    localStream.getTracks().forEach(track => {
-                        track.stop();
-                        console.log('Stopped existing track:', track.kind, track.id);
-                    });
-                    localStream = null;
+                    localStream.getTracks().forEach(track => track.stop());
                 }
                 localStream = await navigator.mediaDevices.getUserMedia({ 
                     video: true, 
@@ -401,7 +404,10 @@
             if (!localStream) {
                 await startVideoChat();
             }
-            resetConnection();
+            if (peerConnection) {
+                peerConnection.close();
+                peerConnection = null;
+            }
             peerConnection = new RTCPeerConnection(configuration);
             console.log('Initiator created peerConnection, state:', peerConnection.signalingState);
 
@@ -438,6 +444,7 @@
                 console.log('Initiator signaling state:', peerConnection.signalingState);
             };
 
+            await new Promise(resolve => setTimeout(resolve, 500)); // Ensure tracks are ready
             const offer = await peerConnection.createOffer();
             await peerConnection.setLocalDescription(offer);
             console.log('Initiator sent offer:', offer.sdp.substring(0, 100) + '...');
@@ -458,7 +465,10 @@
             if (!localStream) {
                 await startVideoChat();
             }
-            resetConnection();
+            if (peerConnection) {
+                peerConnection.close();
+                peerConnection = null;
+            }
             peerConnection = new RTCPeerConnection(configuration);
             console.log('Receiver created peerConnection, state:', peerConnection.signalingState);
 
@@ -496,6 +506,7 @@
             };
 
             await peerConnection.setRemoteDescription(new RTCSessionDescription(data.offer));
+            await new Promise(resolve => setTimeout(resolve, 500)); // Ensure tracks are ready
             const answer = await peerConnection.createAnswer();
             await peerConnection.setLocalDescription(answer);
             console.log('Receiver sent answer:', answer.sdp.substring(0, 100) + '...');
@@ -511,6 +522,10 @@
             console.log('Initiator handling answer from:', remotePeerId);
             if (peerConnection.signalingState !== 'have-local-offer') {
                 console.warn('Invalid signaling state for answer:', peerConnection.signalingState);
+                if (peerConnection) peerConnection.close();
+                peerConnection = new RTCPeerConnection(configuration);
+                localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
+                await initiateCall(); // Restart negotiation
                 return;
             }
             await peerConnection.setRemoteDescription(new RTCSessionDescription(data.answer));
@@ -526,21 +541,7 @@
             }
         }
 
-        function resetConnection() {
-            if (peerConnection) {
-                console.log('Resetting peerConnection, previous state:', peerConnection.signalingState);
-                peerConnection.close();
-                peerConnection = null;
-            }
-            remoteVideo.srcObject = null;
-            remotePeerId = null;
-            reportButton.disabled = true;
-            chatInput.disabled = true;
-            sendChatButton.disabled = true;
-            chatMessages.innerHTML = '';
-        }
-
-        async function endVideoChat() {
+        function endVideoChat() {
             if (remotePeerId) {
                 ws.send(JSON.stringify({
                     type: 'end-chat',
@@ -548,19 +549,26 @@
                     target: remotePeerId
                 }));
             }
-            resetConnection();
+            if (peerConnection) {
+                peerConnection.close();
+                peerConnection = null;
+            }
             if (localStream) {
-                localStream.getTracks().forEach(track => {
-                    track.stop();
-                    console.log('Stopped track on end:', track.kind, track.id);
-                });
+                localStream.getTracks().forEach(track => track.stop());
                 localStream = null;
             }
             localVideo.srcObject = null;
+            remoteVideo.srcObject = null;
+            remotePeerId = null;
+            reportButton.disabled = true;
+            chatInput.disabled = true;
+            sendChatButton.disabled = true;
+            chatMessages.innerHTML = '';
             statusText.textContent = 'Waiting for match...';
             console.log('Chat ended, rejoining pool');
-            await startVideoChat();
-            ws.send(JSON.stringify({ type: 'join' }));
+            startVideoChat().then(() => {
+                ws.send(JSON.stringify({ type: 'join' }));
+            });
         }
 
         chatInput.addEventListener('keypress', (e) => {
