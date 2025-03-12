@@ -248,10 +248,15 @@
                         sendChatButton.disabled = false;
                         await initiateCall();
                         setTimeout(() => {
-                            if (peerConnection && peerConnection.connectionState !== 'connected') {
+                            console.log('Timeout triggered, remotePeerId is:', remotePeerId);
+                            if (peerConnection && peerConnection.connectionState !== 'connected' && peerConnection.connectionState !== 'closed') {
                                 console.warn('No answer received from peer:', remotePeerId, 'Resetting connection');
                                 endVideoChat();
                                 connectRandom();
+                            } else if (!peerConnection) {
+                                console.warn('Peer connection was already cleaned up before timeout');
+                            } else {
+                                console.log('Connection already established or closed, no reset needed');
                             }
                         }, ANSWER_TIMEOUT);
                         break;
