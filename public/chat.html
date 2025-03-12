@@ -252,16 +252,28 @@
                         addChatMessage(data.message, data.sender === myPeerId ? 'You' : 'Them');
                         break;
                     case 'offer':
+                        if (remotePeerId && data.peerId !== remotePeerId) {
+                            console.log('Ignoring offer from unexpected peer:', data.peerId);
+                            return;
+                        }
                         remotePeerId = data.peerId;
                         console.log('Received offer from:', remotePeerId);
                         await handleOffer(data);
                         break;
                     case 'answer':
+                        if (remotePeerId && data.peerId !== remotePeerId) {
+                            console.log('Ignoring answer from unexpected peer:', data.peerId);
+                            return;
+                        }
                         remotePeerId = remotePeerId || data.peerId;
                         console.log('Received answer from:', remotePeerId);
                         await handleAnswer(data);
                         break;
                     case 'candidate':
+                        if (remotePeerId && data.peerId !== remotePeerId) {
+                            console.log('Ignoring candidate from unexpected peer:', data.peerId);
+                            return;
+                        }
                         remotePeerId = remotePeerId || data.peerId;
                         console.log('Received ICE candidate from:', remotePeerId, data.candidate.candidate);
                         await handleCandidate(data);
@@ -294,15 +306,7 @@
                     case 'requeue':
                         console.log('Requeued to waiting pool');
                         statusText.textContent = 'Waiting for match...';
-                        if (peerConnection) peerConnection.close();
-                        peerConnection = null;
-                        remoteVideo.srcObject = null;
-                        remotePeerId = null;
-                        chatMessages.innerHTML = '';
-                        reportButton.disabled = true;
-                        chatInput.disabled = true;
-                        sendChatButton.disabled = true;
-                        iceCandidateQueue = [];
+                        cleanupConnection();
                         await startVideoChat();
                         ws.send(JSON.stringify({ type: 'join' }));
                         break;
@@ -333,7 +337,7 @@
                 localVideo.srcObject = localStream;
                 statusText.textContent = 'Video started';
                 console.log('Started local stream with tracks:', localStream.getTracks().map(t => `${t.kind}:${t.id}`));
-                startVideoButton.style.display = 'none'; // Hide the button after clicking
+                startVideoButton.style.display = 'none';
             } catch (error) {
                 console.error('Error accessing media devices:', error.name, error.message);
                 statusText.textContent = `Error starting video: ${error.name}`;
@@ -475,10 +479,7 @@
             if (!localStream) {
                 await startVideoChat();
             }
-            if (peerConnection) {
-                peerConnection.close();
-                peerConnection = null;
-            }
+            cleanupConnection();
             peerConnection = new RTCPeerConnection(configuration);
             console.log('Initiator created peerConnection, state:', peerConnection.signalingState);
 
@@ -508,6 +509,7 @@
                 console.log('Initiator ICE state:', peerConnection.iceConnectionState);
                 if (peerConnection.iceConnectionState === 'disconnected') {
                     statusText.textContent = 'Disconnected';
+                    endVideoChat();
                 } else if (peerConnection.iceConnectionState === 'connected') {
                     statusText.textContent = 'Connected';
                 }
@@ -529,7 +531,7 @@
                 }));
             } catch (error) {
                 console.error('Error creating/sending offer:', error);
-                peerConnection.close();
+                cleanupConnection();
                 await initiateCall();
             }
         }
@@ -543,10 +545,7 @@
             if (!localStream) {
                 await startVideoChat();
             }
-            if (peerConnection) {
-                peerConnection.close();
-                peerConnection = null;
-            }
+            cleanupConnection();
             peerConnection = new RTCPeerConnection(configuration);
             console.log('Receiver created peerConnection, state:', peerConnection.signalingState);
 
@@ -574,8 +573,9 @@
 
             peerConnection.oniceconnectionstatechange = () => {
                 console.log('Receiver ICE state:', peerConnection.iceConnectionState);
-                if (peerConnection.iceConnectionState === 'disconnected') {
+                if (peerConnection.iceConnectionstate === 'disconnected') {
                     statusText.textContent = 'Disconnected';
+                    endVideoChat();
                 } else if (peerConnection.iceConnectionState === 'connected') {
                     statusText.textContent = 'Connected';
                 }
@@ -630,12 +630,13 @@
                     iceCandidateQueue = [];
                 } catch (error) {
                     console.error('Error setting remote description:', error);
+                    cleanupConnection();
                     await initiateCall();
                 }
             } else {
                 console.warn('Received answer in unexpected state:', peerConnection.signalingState);
                 if (peerConnection.signalingState !== 'stable') {
-                    peerConnection.close();
+                    cleanupConnection();
                     await initiateCall();
                 }
             }
@@ -655,6 +656,20 @@
             }
         }
 
+        function cleanupConnection() {
+            if (peerConnection) {
+                peerConnection.close();
+                peerConnection = null;
+            }
+            remoteVideo.srcObject = null;
+            remotePeerId = null;
+            iceCandidateQueue = [];
+            reportButton.disabled = true;
+            chatInput.disabled = true;
+            sendChatButton.disabled = true;
+            chatMessages.innerHTML = '';
+        }
+
         function endVideoChat() {
             if (remotePeerId) {
                 ws.send(JSON.stringify({
@@ -663,27 +678,15 @@
                     target: remotePeerId
                 }));
             }
-            if (peerConnection) {
-                peerConnection.close();
-                peerConnection = null;
-            }
             if (localStream) {
                 localStream.getTracks().forEach(track => track.stop());
                 localStream = null;
             }
             localVideo.srcObject = null;
-            remoteVideo.srcObject = null;
-            remotePeerId = null;
-            reportButton.disabled = true;
-            chatInput.disabled = true;
-            sendChatButton.disabled = true;
-            chatMessages.innerHTML = '';
-            statusText.textContent = 'Waiting for match...';
-            iceCandidateQueue = [];
-            console.log('Chat ended, rejoining pool');
-            startVideoChat().then(() => {
-                ws.send(JSON.stringify({ type: 'join' }));
-            });
+            cleanupConnection();
+            statusText.textContent = 'Disconnected';
+            startVideoButton.style.display = 'block'; // Show "Start Video" button again
+            console.log('Chat ended, not rejoining pool');
         }
 
         chatInput.addEventListener('keypress', (e) => {
