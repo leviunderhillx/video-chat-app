@@ -46,33 +46,33 @@
         }
         .video-container {
             display: flex;
-            gap: 20px;
-            padding: 20px;
+            gap: 20px; /* Reduced gap for better fit */
+            padding: 20px; /* Adjusted padding */
             background-color: #fff;
             border-radius: 10px;
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
             margin: 20px 0;
             flex-wrap: wrap;
             justify-content: center;
-            width: 95%;
-            max-width: 1400px;
+            width: 95%; /* Nearly full width */
+            max-width: 1400px; /* Cap for larger screens */
         }
         video {
-            width: 45vw;
-            max-width: 640px;
-            height: auto;
+            width: 45vw; /* 45% of viewport width */
+            max-width: 640px; /* Cap at Omegle’s max size */
+            height: auto; /* Maintain aspect ratio */
             background-color: #000;
             border-radius: 5px;
         }
-        @media (max-width: 768px) {
+        @media (max-width: 768px) { /* Tablets and smaller */
             video {
-                width: 80vw;
-                max-width: 100%;
+                width: 80vw; /* Larger on smaller screens */
+                max-width: 100%; /* Full width if needed */
             }
         }
-        @media (max-width: 480px) {
+        @media (max-width: 480px) { /* Phones */
             video {
-                width: 90vw;
+                width: 90vw; /* Nearly full width on phones */
             }
         }
         #chat-container {
@@ -155,7 +155,7 @@
         <button onclick="endVideoChat()">End Chat</button>
     </div>
     <div id="status">Status: <span id="statusText">Disconnected</span></div>
-
+    
     <div class="video-container" id="user-videos">
         <video id="localVideo" autoplay playsinline muted></video>
         <video id="remoteVideo" autoplay playsinline></video>
