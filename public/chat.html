@@ -46,20 +46,20 @@
         }
         .video-container {
             display: flex;
-            gap: 30px; /* Increased gap for breathing room */
-            padding: 30px; /* More padding for a larger feel */
+            gap: 40px; /* More space between videos */
+            padding: 40px; /* Larger padding for a bigger frame */
             background-color: #fff;
             border-radius: 10px;
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
             margin: 20px 0;
             flex-wrap: wrap;
             justify-content: center;
-            width: 90%; /* Wider container */
-            max-width: 1200px; /* Cap for larger screens */
+            width: 95%; /* Nearly full width */
+            max-width: 1400px; /* Larger cap for bigger screens */
         }
         video {
-            width: 48%; /* Slightly larger proportion */
-            max-width: 600px; /* Increased from 400px for bigger videos */
+            width: 640px; /* Fixed width like Omegle */
+            height: 480px; /* 4:3 aspect ratio */
             background-color: #000;
             border-radius: 5px;
         }
@@ -92,13 +92,16 @@
             position: absolute;
             top: 10px;
             right: 10px;
-            width: 100px; /* Fixed width to ensure clickable area */
-            height: 40px; /* Fixed height to match button */
+            width: 120px; /* Slightly larger clickable area */
+            height: 40px;
         }
         #admin-login button {
-            visibility: hidden; /* Only the button is invisible */
+            opacity: 0; /* Invisible but clickable */
             width: 100%;
             height: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
         }
         #admin-container {
             display: none; /* Hidden until clicked */
@@ -373,6 +376,7 @@
 
         function showAdminLogin() {
             adminContainer.style.display = 'block';
+            console.log('Admin login panel shown');
         }
 
         function adminLogin() {
