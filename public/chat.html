@@ -46,33 +46,33 @@
         }
         .video-container {
             display: flex;
-            gap: 20px; /* Reduced gap for better fit */
-            padding: 20px; /* Adjusted padding */
+            gap: 20px;
+            padding: 20px;
             background-color: #fff;
             border-radius: 10px;
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
             margin: 20px 0;
             flex-wrap: wrap;
             justify-content: center;
-            width: 95%; /* Nearly full width */
-            max-width: 1400px; /* Cap for larger screens */
+            width: 95%;
+            max-width: 1400px;
         }
         video {
-            width: 45vw; /* 45% of viewport width */
-            max-width: 640px; /* Cap at Omegle’s max size */
-            height: auto; /* Maintain aspect ratio */
+            width: 45vw;
+            max-width: 640px;
+            height: auto;
             background-color: #000;
             border-radius: 5px;
         }
-        @media (max-width: 768px) { /* Tablets and smaller */
+        @media (max-width: 768px) {
             video {
-                width: 80vw; /* Larger on smaller screens */
-                max-width: 100%; /* Full width if needed */
+                width: 80vw;
+                max-width: 100%;
             }
         }
-        @media (max-width: 480px) { /* Phones */
+        @media (max-width: 480px) {
             video {
-                width: 90vw; /* Nearly full width on phones */
+                width: 90vw;
             }
         }
         #chat-container {
@@ -324,13 +324,14 @@
                     localStream.getTracks().forEach(track => track.stop());
                 }
                 localStream = await navigator.mediaDevices.getUserMedia({ 
-                    video: { facingMode: "user" }, // Ensure the correct camera is used
+                    video: true, 
                     audio: true 
                 });
                 localVideo.srcObject = localStream;
                 statusText.textContent = 'Video started';
+                console.log('Started local stream with tracks:', localStream.getTracks().map(t => `${t.kind}:${t.id}`));
             } catch (error) {
-                console.error('Error accessing media devices:', error);
+                console.error('Error accessing media devices:', error.name, error.message);
                 statusText.textContent = `Error starting video: ${error.name}`;
             }
         }
