@@ -1,660 +1,144 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>KonnectAi</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            margin: 0;
-            padding: 20px;
-            background-color: #f0f0f0;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-        }
-        h1 {
-            color: #333;
-            margin-bottom: 20px;
-        }
-        .button-container {
-            display: flex;
-            justify-content: center;
-            gap: 15px;
-            margin-bottom: 20px;
-        }
-        button {
-            padding: 10px 20px;
-            background-color: #4CAF50;
-            color: white;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-            transition: transform 0.2s, box-shadow 0.2s;
-        }
-        button:hover {
-            background-color: #45a049;
-            transform: translateY(-2px);
-            box-shadow: 0 6px 8px rgba(0, 0, 0, 0.2);
-        }
-        #status {
-            margin-top: 10px;
-            font-size: 14px;
-            color: #666;
-        }
-        .video-container {
-            display: flex;
-            gap: 20px;
-            padding: 20px;
-            background-color: #fff;
-            border-radius: 10px;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-            margin: 20px 0;
-            flex-wrap: wrap;
-            justify-content: center;
-            width: 95%;
-            max-width: 1400px;
-        }
-        video {
-            width: 45vw;
-            max-width: 640px;
-            height: auto;
-            background-color: #000;
-            border-radius: 5px;
-        }
-        @media (max-width: 768px) {
-            video {
-                width: 80vw;
-                max-width: 100%;
-            }
-        }
-        @media (max-width: 480px) {
-            video {
-                width: 90vw;
-            }
-        }
-        #chat-container {
-            width: 90%;
-            max-width: 1000px;
-            margin-top: 20px;
-        }
-        #chat-messages {
-            height: 150px;
-            overflow-y: auto;
-            border: 1px solid #ccc;
-            padding: 10px;
-            background-color: white;
-            border-radius: 5px;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-        }
-        #chat-input {
-            width: 70%;
-            padding: 5px;
-            margin-top: 10px;
-            border-radius: 5px;
-            border: 1px solid #ccc;
-        }
-        #send-chat {
-            padding: 5px 15px;
-            margin-left: 10px;
-        }
-        #admin-login {
-            position: absolute;
-            top: 10px;
-            right: 10px;
-            width: 120px;
-            height: 40px;
-        }
-        #admin-login button {
-            opacity: 0;
-            width: 100%;
-            height: 100%;
-            position: absolute;
-            top: 0;
-            left: 0;
-        }
-        #admin-container {
-            display: none;
-            margin-top: 20px;
-            width: 90%;
-            max-width: 1000px;
-        }
-        .admin-peer {
-            width: 220px;
-            margin: 5px;
-            position: relative;
-            background-color: white;
-            padding: 10px;
-            border-radius: 5px;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-        }
-        .admin-screenshot {
-            width: 200px;
-            height: auto;
-        }
-        .admin-ban-btn, .admin-screenshot-btn {
-            padding: 5px;
-            margin: 5px 0;
-        }
-        .admin-ban-btn {
-            background-color: #ff4444;
-        }
-        .admin-screenshot-btn {
-            background-color: #4CAF50;
-        }
-    </style>
+<title>WebRTC Video Chat</title>
+<style>
+body {
+    font-family: sans-serif;
+}
+video {
+    width: 320px;
+    height: 240px;
+}
+</style>
 </head>
 <body>
-    <h1>KonnectAi</h1>
-    <div class="button-container">
-        <button id="startVideoButton" onclick="startVideoChat()">Start Video</button>
-        <button onclick="connectRandom()">Connect Random</button>
-        <button onclick="reportPeer()" id="reportButton" disabled>Report User</button>
-        <button onclick="endVideoChat()">End Chat</button>
-    </div>
-    <div id="status">Status: <span id="statusText">Disconnected</span></div>
-    
-    <div class="video-container" id="user-videos">
-        <video id="localVideo" autoplay playsinline muted></video>
-        <video id="remoteVideo" autoplay playsinline></video>
-    </div>
-
-    <div id="chat-container">
-        <div id="chat-messages"></div>
-        <input type="text" id="chat-input" placeholder="Type a message..." disabled>
-        <button id="send-chat" onclick="sendChatMessage()" disabled>Send</button>
-    </div>
-
-    <div id="admin-login">
-        <button onclick="showAdminLogin()">Admin Login</button>
-    </div>
-    <div id="admin-container">
-        <h2>Admin View</h2>
-        <input type="password" id="admin-password" placeholder="Enter admin password">
-        <button onclick="adminLogin()">Login</button>
-        <div id="admin-peers" class="video-container"></div>
-    </div>
-
-    <canvas id="screenshot-canvas" style="display:none;"></canvas>
-
+    <h1>WebRTC Video Chat</h1>
+    <div id="status"></div>
+    <button id="startButton">Start</button>
+    <button id="endButton" disabled>End</button>
+    <video id="localVideo" autoplay muted></video>
+    <video id="remoteVideo" autoplay></video>
     <script>
-        let localStream;
+        const localVideo = document.getElementById('localVideo');
+        const remoteVideo = document.getElementById('remoteVideo');
+        const statusText = document.getElementById('status');
+        const startButton = document.getElementById('startButton');
+        const endButton = document.getElementById('endButton');
         let peerConnection;
-        let ws;
-        let myPeerId;
-        let remotePeerId;
-        let isAdmin = false;
-        let iceCandidateQueue = [];
+        let dataChannel;
+
 
         const configuration = {
             iceServers: [
-                { urls: 'stun:stun.l.google.com:19302' },
-                { urls: 'stun:stun1.l.google.com:19302' },
                 {
-                    urls: 'turn:openrelay.metered.ca:80',
-                    username: 'openrelayproject',
-                    credential: 'openrelayproject'
-                },
-                {
-                    urls: 'turn:openrelay.metered.ca:443',
-                    username: 'openrelayproject',
-                    credential: 'openrelayproject'
+                    urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302', 'stun:stun2.l.google.com:19302']
                 }
             ]
         };
 
-        const localVideo = document.getElementById('localVideo');
-        const remoteVideo = document.getElementById('remoteVideo');
-        const statusText = document.getElementById('statusText');
-        const reportButton = document.getElementById('reportButton');
-        const chatInput = document.getElementById('chat-input');
-        const sendChatButton = document.getElementById('send-chat');
-        const chatMessages = document.getElementById('chat-messages');
-        const adminContainer = document.getElementById('admin-container');
-        const adminPeers = document.getElementById('admin-peers');
-        const canvas = document.getElementById('screenshot-canvas');
-        const ctx = canvas.getContext('2d');
-        const startVideoButton = document.getElementById('startVideoButton');
+        const wsUrl = 'wss://video-chat-server-t6df.onrender.com'; // Ensure this URL is correct
+        let ws;
 
-        const SIGNALING_SERVER_URL = 'wss://video-chat-server-t6df.onrender.com';
-        connectWebSocket();
+        startButton.onclick = initiateCall;
+        endButton.onclick = endVideoChat;
 
-        function connectWebSocket() {
-            ws = new WebSocket(SIGNALING_SERVER_URL);
+        function initiateCall() {
+            startButton.disabled = true;
+            endButton.disabled = false;
+            statusText.textContent = 'Connecting...';
 
-            ws.onopen = () => {
-                console.log('Connected to signaling server');
-                statusText.textContent = 'Connected to server';
-            };
+            navigator.mediaDevices.getUserMedia({
+                video: true,
+                audio: true
+            }).then(stream => {
+                localVideo.srcObject = stream;
+                peerConnection = new RTCPeerConnection(configuration);
+                peerConnection.addTrack(stream.getVideoTracks()[0], stream);
+                peerConnection.addTrack(stream.getAudioTracks()[0], stream);
 
-            ws.onmessage = async (event) => {
-                const data = JSON.parse(event.data);
-                console.log('Received message:', JSON.stringify(data));
-
-                switch (data.type) {
-                    case 'connected':
-                        myPeerId = data.peerId;
-                        console.log('My peer ID:', myPeerId);
-                        break;
-                    case 'matched':
-                        remotePeerId = data.peerId;
-                        console.log('Matched with:', remotePeerId);
-                        statusText.textContent = 'Matched with peer';
-                        reportButton.disabled = false;
-                        chatInput.disabled = false;
-                        sendChatButton.disabled = false;
-                        await initiateCall();
-                        break;
-                    case 'chat':
-                        console.log('Received chat from:', data.sender, 'Message:', data.message);
-                        addChatMessage(data.message, data.sender === myPeerId ? 'You' : 'Them');
-                        break;
-                    case 'offer':
-                        if (remotePeerId && data.peerId !== remotePeerId) {
-                            console.log('Ignoring offer from unexpected peer:', data.peerId);
-                            return;
-                        }
-                        remotePeerId = data.peerId;
-                        console.log('Received offer from:', remotePeerId);
-                        await handleOffer(data);
-                        break;
-                    case 'answer':
-                        if (remotePeerId && data.peerId !== remotePeerId) {
-                            console.log('Ignoring answer from unexpected peer:', data.peerId);
-                            return;
-                        }
-                        remotePeerId = remotePeerId || data.peerId;
-                        console.log('Received answer from:', remotePeerId);
-                        await handleAnswer(data);
-                        break;
-                    case 'candidate':
-                        if (remotePeerId && data.peerId !== remotePeerId) {
-                            console.log('Ignoring candidate from unexpected peer:', data.peerId);
-                            return;
-                        }
-                        remotePeerId = remotePeerId || data.peerId;
-                        console.log('Received ICE candidate from:', remotePeerId, data.candidate.candidate);
-                        await handleCandidate(data);
-                        break;
-                    case 'peer-disconnected':
-                        if (data.peerId === remotePeerId) {
-                            endVideoChat();
-                            statusText.textContent = 'Peer disconnected';
-                        }
-                        break;
-                    case 'banned':
+                peerConnection.oniceconnectionstatechange = () => {
+                    console.log('Initiator ICE state:', peerConnection.iceConnectionState);
+                    if (peerConnection.iceConnectionState === 'disconnected') {
+                        statusText.textContent = 'Disconnected';
                         endVideoChat();
-                        alert(data.reason);
-                        document.body.innerHTML = '<h1>You are banned from this service</h1>';
-                        break;
-                    case 'admin-update':
-                        if (isAdmin) {
-                            updateAdminView(data.peers);
-                        }
-                        break;
-                    case 'screenshot-request':
-                        sendScreenshot(data.requester);
-                        break;
-                    case 'screenshot-response':
-                        if (isAdmin) {
-                            displayScreenshot(data.peerId, data.screenshot);
-                            saveScreenshotLocally(data.peerId, data.screenshot);
-                        }
-                        break;
-                    case 'requeue':
-                        console.log('Requeued to waiting pool');
-                        statusText.textContent = 'Waiting for match...';
-                        cleanupConnection();
-                        await startVideoChat();
-                        ws.send(JSON.stringify({ type: 'join' }));
-                        break;
-                }
-            };
-
-            ws.onerror = (error) => {
-                console.error('WebSocket error:', error);
-                statusText.textContent = 'WebSocket connection failed';
-            };
-
-            ws.onclose = () => {
-                console.log('WebSocket closed');
-                statusText.textContent = 'Disconnected from server';
-                if (!isAdmin) connectWebSocket();
-            };
-        }
-
-        async function startVideoChat() {
-            try {
-                if (localStream) {
-                    localStream.getTracks().forEach(track => track.stop());
-                }
-                localStream = await navigator.mediaDevices.getUserMedia({ 
-                    video: true, 
-                    audio: true 
-                });
-                localVideo.srcObject = localStream;
-                statusText.textContent = 'Video started';
-                console.log('Started local stream with tracks:', localStream.getTracks().map(t => `${t.kind}:${t.id}`));
-                startVideoButton.style.display = 'none';
-            } catch (error) {
-                console.error('Error accessing media devices:', error.name, error.message);
-                statusText.textContent = `Error starting video: ${error.name}`;
-            }
-        }
-
-        function connectRandom() {
-            if (!localStream) {
-                statusText.textContent = 'Please start video first';
-                return;
-            }
-            if (!myPeerId) {
-                statusText.textContent = 'Not connected to server';
-                console.log('WebSocket state:', ws.readyState);
-                return;
-            }
-            ws.send(JSON.stringify({ type: 'join' }));
-            statusText.textContent = 'Waiting for match...';
-            console.log('Requesting random match');
-        }
-
-        function reportPeer() {
-            if (remotePeerId) {
-                ws.send(JSON.stringify({ 
-                    type: 'report', 
-                    reportedPeerId: remotePeerId,
-                    myPeerId: myPeerId
-                }));
-                statusText.textContent = 'User reported, returning to pool';
-                console.log('Reported peer:', remotePeerId);
-            }
-        }
-
-        function sendChatMessage() {
-            const message = chatInput.value.trim();
-            if (message && remotePeerId) {
-                console.log('Sending chat to:', remotePeerId, 'Message:', message);
-                ws.send(JSON.stringify({
-                    type: 'chat',
-                    message: message,
-                    target: remotePeerId
-                }));
-                addChatMessage(message, 'You');
-                chatInput.value = '';
-            } else {
-                console.log('Cannot send chat: remotePeerId missing:', remotePeerId);
-            }
-        }
-
-        function addChatMessage(message, sender) {
-            const messageElement = document.createElement('div');
-            messageElement.textContent = `${sender}: ${message}`;
-            chatMessages.appendChild(messageElement);
-            chatMessages.scrollTop = chatMessages.scrollHeight;
-        }
-
-        function showAdminLogin() {
-            adminContainer.style.display = 'block';
-            console.log('Admin login panel shown');
-        }
-
-        function adminLogin() {
-            const password = document.getElementById('admin-password').value;
-            ws.send(JSON.stringify({ type: 'admin-login', password }));
-            isAdmin = true;
-            console.log('Admin login attempted');
-        }
-
-        function updateAdminView(peers) {
-            adminPeers.innerHTML = '';
-            peers.forEach(peer => {
-                const peerContainer = document.createElement('div');
-                peerContainer.className = 'admin-peer';
-                peerContainer.id = `peer-${peer.peerId}`;
-
-                const screenshot = document.createElement('img');
-                screenshot.className = 'admin-screenshot';
-                screenshot.alt = 'No screenshot yet';
-
-                const screenshotButton = document.createElement('button');
-                screenshotButton.className = 'admin-screenshot-btn';
-                screenshotButton.textContent = 'Request Screenshot';
-                screenshotButton.onclick = () => {
-                    ws.send(JSON.stringify({ type: 'admin-screenshot-request', peerId: peer.peerId }));
-                };
-
-                const banButton = document.createElement('button');
-                banButton.className = 'admin-ban-btn';
-                banButton.textContent = 'Ban';
-                banButton.onclick = () => {
-                    ws.send(JSON.stringify({ type: 'admin-ban', peerId: peer.peerId }));
-                };
-
-                const label = document.createElement('div');
-                label.textContent = `Peer: ${peer.peerId} | IP: ${peer.ip}`;
-
-                peerContainer.appendChild(screenshot);
-                peerContainer.appendChild(screenshotButton);
-                peerContainer.appendChild(banButton);
-                peerContainer.appendChild(label);
-                adminPeers.appendChild(peerContainer);
-            });
-        }
-
-        function sendScreenshot(requester) {
-            if (!localStream) return;
-            canvas.width = localVideo.videoWidth;
-            canvas.height = localVideo.videoHeight;
-            ctx.drawImage(localVideo, 0, 0, canvas.width, canvas.height);
-            const screenshot = canvas.toDataURL('image/jpeg', 0.5);
-            ws.send(JSON.stringify({
-                type: 'screenshot-response',
-                requester: requester,
-                screenshot: screenshot.split(',')[1]
-            }));
-            console.log('Sent screenshot to:', requester);
-        }
-
-        function displayScreenshot(peerId, screenshot) {
-            const peerContainer = document.getElementById(`peer-${peerId}`);
-            if (peerContainer) {
-                const img = peerContainer.querySelector('.admin-screenshot');
-                img.src = `data:image/jpeg;base64,${screenshot}`;
-                console.log('Displayed screenshot for:', peerId);
-            }
-        }
-
-        function saveScreenshotLocally(peerId, screenshot) {
-            const link = document.createElement('a');
-            link.href = `data:image/jpeg;base64,${screenshot}`;
-            link.download = `screenshot_${peerId}_${Date.now()}.jpg`;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            console.log(`Saved screenshot locally for peer: ${peerId}`);
-        }
-
-        async function initiateCall() {
-            if (!localStream) {
-                await startVideoChat();
-            }
-            cleanupConnection();
-            peerConnection = new RTCPeerConnection(configuration);
-            console.log('Initiator created peerConnection, state:', peerConnection.signalingState);
-
-            localStream.getTracks().forEach(track => {
-                console.log('Initiator adding track:', track.kind, track.id);
-                peerConnection.addTrack(track, localStream);
-            });
-
-            peerConnection.ontrack = event => {
-                console.log('Initiator received remote stream, tracks:', event.streams[0].getTracks().map(t => `${t.kind}:${t.id}`));
-                remoteVideo.srcObject = event.streams[0];
-                statusText.textContent = 'Connected';
-            };
-
-            peerConnection.onicecandidate = event => {
-                if (event.candidate) {
-                    console.log('Initiator sending ICE candidate:', event.candidate.candidate);
-                    ws.send(JSON.stringify({
-                        type: 'candidate',
-                        candidate: event.candidate,
-                        target: remotePeerId
-                    }));
-                }
-            };
-
-            peerConnection.oniceconnectionstatechange = () => {
-                console.log('Initiator ICE state:', peerConnection.iceConnectionState);
-                if (peerConnection.iceConnectionState === 'disconnected' || peerConnection.iceConnectionState === 'failed') {
-                    statusText.textContent = 'Disconnected';
-                    endVideoChat();
-                } else if (peerConnection.iceConnectionState === 'connected') {
-                    statusText.textContent = 'Connected';
-                }
-            };
-
-            peerConnection.onsignalingstatechange = () => {
-                console.log('Initiator signaling state:', peerConnection.signalingState);
-            };
-
-            try {
-                const offer = await peerConnection.createOffer();
-                await peerConnection.setLocalDescription(offer);
-                console.log('Initiator sent offer:', offer.sdp.substring(0, 100) + '...');
-                ws.send(JSON.stringify({
-                    type: 'offer',
-                    offer: offer,
-                    target: remotePeerId,
-                    peerId: myPeerId
-                }));
-            } catch (error) {
-                console.error('Error creating/sending offer:', error);
-                cleanupConnection();
-                await initiateCall();
-            }
-        }
-
-        async function handleOffer(data) {
-            remotePeerId = data.peerId;
-            console.log('Receiver handling offer from:', remotePeerId);
-            reportButton.disabled = false;
-            chatInput.disabled = false;
-            sendChatButton.disabled = false;
-            if (!localStream) {
-                await startVideoChat();
-            }
-            cleanupConnection();
-            peerConnection = new RTCPeerConnection(configuration);
-            console.log('Receiver created peerConnection, state:', peerConnection.signalingState);
-
-            localStream.getTracks().forEach(track => {
-                console.log('Receiver adding track:', track.kind, track.id);
-                peerConnection.addTrack(track, localStream);
-            });
-
-            peerConnection.ontrack = event => {
-                console.log('Receiver received remote stream, tracks:', event.streams[0].getTracks().map(t => `${t.kind}:${t.id}`));
-                remoteVideo.srcObject = event.streams[0];
-                statusText.textContent = 'Connected';
-            };
-
-            peerConnection.onicecandidate = event => {
-                if (event.candidate) {
-                    console.log('Receiver sending ICE candidate:', event.candidate.candidate);
-                    ws.send(JSON.stringify({
-                        type: 'candidate',
-                        candidate: event.candidate,
-                        target: remotePeerId
-                    }));
-                }
-            };
-
-            peerConnection.oniceconnectionStatechange = () => {
-                console.log('Receiver ICE state:', peerConnection.iceConnectionState);
-                if (peerConnection.iceConnectionState === 'disconnected' || peerConnection.iceConnectionState === 'failed') {
-                    statusText.textContent = 'Disconnected';
-                    endVideoChat();
-                } else if (peerConnection.iceConnectionState === 'connected') {
-                    statusText.textContent = 'Connected';
-                }
-            };
-
-            peerConnection.onsignalingstatechange = () => {
-                console.log('Receiver signaling state:', peerConnection.signalingState);
-            };
-
-            try {
-                await peerConnection.setRemoteDescription(new RTCSessionDescription(data.offer));
-                iceCandidateQueue.forEach(async candidate => {
-                    try {
-                        await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
-                        console.log('Applied queued ICE candidate:', candidate.candidate);
-                    } catch (error) {
-                        console.error('Error applying queued ICE candidate:', error);
+                    } else if (peerConnection.iceConnectionState === 'connected') {
+                        statusText.textContent = 'Connected';
+                    } else if (peerConnection.iceConnectionState === 'failed') {
+                        console.error('ICE connection failed. Attempting recovery...');
+                        statusText.textContent = 'Connection failed, retrying...';
+                        setTimeout(() => {
+                            cleanupConnection();
+                            initiateCall();
+                        }, 2000);
                     }
+                };
+
+                peerConnection.onsignalingstatechange = () => {
+                    console.log('Initiator signaling state:', peerConnection.signalingState);
+                };
+
+                peerConnection.onconnectionstatechange = () => {
+                    console.log('Initiator connection state:', peerConnection.connectionState);
+                    if (peerConnection.connectionState === 'failed') {
+                        console.error('Connection state failed. Check network/firewall settings.');
+                        statusText.textContent = 'Connection failed';
+                    }
+                };
+
+
+                peerConnection.onicecandidate = event => {
+                    if (event.candidate) {
+                        ws.send(JSON.stringify({
+                            type: 'candidate',
+                            candidate: event.candidate
+                        }));
+                    }
+                };
+
+                peerConnection.createOffer().then(offer => {
+                    return peerConnection.setLocalDescription(offer);
+                }).then(() => {
+                    ws.send(JSON.stringify({
+                        type: 'offer',
+                        sdp: peerConnection.localDescription
+                    }));
+                }).catch(error => {
+                    console.error('Error creating offer:', error);
+                    statusText.textContent = 'Error creating offer';
                 });
-                iceCandidateQueue = [];
 
-                const answer = await peerConnection.createAnswer();
-                await peerConnection.setLocalDescription(answer);
-                console.log('Receiver sent answer:', answer.sdp.substring(0, 100) + '...');
-                ws.send(JSON.stringify({
-                    type: 'answer',
-                    answer: answer,
-                    target: remotePeerId,
-                    peerId: myPeerId
-                }));
-            } catch (error) {
-                console.error('Error handling offer:', error);
-                cleanupConnection();
-            }
+                ws = new WebSocket(wsUrl);
+                ws.onopen = () => {
+                    console.log('WebSocket connection opened.');
+                };
+                ws.onmessage = event => {
+                    const message = JSON.parse(event.data);
+                    if (message.type === 'answer') {
+                        peerConnection.setRemoteDescription(new RTCSessionDescription(message.sdp));
+                    } else if (message.type === 'candidate') {
+                        peerConnection.addIceCandidate(message.candidate);
+                    }
+                };
+                ws.onclose = () => {
+                    console.log('WebSocket connection closed.');
+                    endVideoChat();
+                };
+                ws.onerror = error => {
+                    console.error('WebSocket error:', error);
+                    statusText.textContent = 'WebSocket error';
+                };
+            }).catch(error => {
+                console.error('Error accessing media devices:', error);
+                statusText.textContent = 'Error accessing media devices';
+            });
         }
 
-        async function handleAnswer(data) {
-            console.log('Initiator handling answer from:', remotePeerId);
-            if (!peerConnection) {
-                console.warn('No peerConnection exists, creating new one');
-                await initiateCall();
-                return;
-            }
-
-            try {
-                if (peerConnection.signalingState === 'have-local-offer') {
-                    await peerConnection.setRemoteDescription(new RTCSessionDescription(data.answer));
-                    console.log('Initiator set remote description, state:', peerConnection.signalingState);
-                    iceCandidateQueue.forEach(async candidate => {
-                        try {
-                            await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
-                            console.log('Applied queued ICE candidate:', candidate.candidate);
-                        } catch (error) {
-                            console.error('Error applying queued ICE candidate:', error);
-                        }
-                    });
-                    iceCandidateQueue = [];
-                } else {
-                    console.warn('Received answer in unexpected state:', peerConnection.signalingState);
-                }
-            } catch (error) {
-                console.error('Error setting remote description:', error);
-                cleanupConnection();
-                await initiateCall();
-            }
-        }
-
-        async function handleCandidate(data) {
-            try {
-                if (!peerConnection || !peerConnection.remoteDescription) {
-                    console.log('Queueing ICE candidate until remote description is set:', data.candidate.candidate);
-                    iceCandidateQueue.push(data.candidate);
-                    return;
-                }
-                console.log('Handling ICE candidate:', data.candidate.candidate);
-                await peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
-            } catch (error) {
-                console.error('Error adding ICE candidate:', error);
-            }
+        function endVideoChat() {
+            startButton.disabled = false;
+            endButton.disabled = true;
+            statusText.textContent = '';
+            cleanupConnection();
         }
 
         function cleanupConnection() {
@@ -662,39 +146,26 @@
                 peerConnection.close();
                 peerConnection = null;
             }
-            remoteVideo.srcObject = null;
-            remotePeerId = null;
-            iceCandidateQueue = [];
-            reportButton.disabled = true;
-            chatInput.disabled = true;
-            sendChatButton.disabled = true;
-            chatMessages.innerHTML = '';
-        }
-
-        function endVideoChat() {
-            if (remotePeerId) {
-                ws.send(JSON.stringify({
-                    type: 'end-chat',
-                    myPeerId: myPeerId,
-                    target: remotePeerId
-                }));
-            }
-            if (localStream) {
-                localStream.getTracks().forEach(track => track.stop());
-                localStream = null;
+            if (ws) {
+                ws.close();
+                ws = null;
             }
             localVideo.srcObject = null;
-            cleanupConnection();
-            statusText.textContent = 'Disconnected';
-            startVideoButton.style.display = 'block';
-            console.log('Chat ended, not rejoining pool');
+            remoteVideo.srcObject = null;
         }
 
-        chatInput.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') {
-                sendChatMessage();
-            }
-        });
+        peerConnection.ontrack = event => {
+            remoteVideo.srcObject = event.streams[0];
+            peerConnection.oniceconnectionstatechange = () => {
+                console.log('Receiver ICE state:', peerConnection.iceConnectionState);
+                if (peerConnection.iceConnectionState === 'disconnected') {
+                    statusText.textContent = 'Disconnected';
+                    endVideoChat();
+                } else if (peerConnection.iceConnectionState === 'connected') {
+                    statusText.textContent = 'Connected';
+                }
+            };
+        };
     </script>
 </body>
 </html>
