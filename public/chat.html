@@ -3,58 +3,84 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Random Video Chat</title>
+    <title>KonnectAi</title>
     <style>
         body {
             font-family: Arial, sans-serif;
             margin: 0;
             padding: 20px;
             background-color: #f0f0f0;
-        }
-        .video-container {
             display: flex;
-            gap: 20px;
-            margin-top: 20px;
-            flex-wrap: wrap;
+            flex-direction: column;
+            align-items: center;
         }
-        video {
-            width: 45%;
-            background-color: #000;
-            border-radius: 5px;
+        h1 {
+            color: #333;
+            margin-bottom: 20px;
+        }
+        .button-container {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin-bottom: 20px;
         }
         button {
             padding: 10px 20px;
-            margin: 5px;
             background-color: #4CAF50;
             color: white;
             border: none;
             border-radius: 5px;
             cursor: pointer;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); /* Drop shadow for buttons */
+            transition: transform 0.2s, box-shadow 0.2s; /* Animation for hover */
         }
         button:hover {
             background-color: #45a049;
+            transform: translateY(-2px); /* Slight lift on hover */
+            box-shadow: 0 6px 8px rgba(0, 0, 0, 0.2);
         }
         #status {
             margin-top: 10px;
             font-size: 14px;
+            color: #666;
+        }
+        .video-container {
+            display: flex;
+            gap: 20px;
+            padding: 20px;
+            background-color: #fff;
+            border-radius: 10px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1); /* Drop shadow for video box */
+            margin: 20px 0;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        video {
+            width: 45%;
+            max-width: 400px; /* Limit video size for better layout */
+            background-color: #000;
+            border-radius: 5px;
         }
         #chat-container {
+            width: 90%; /* Wider to span screen */
+            max-width: 1000px; /* Cap width for larger screens */
             margin-top: 20px;
-            width: 100%;
-            max-width: 600px;
         }
         #chat-messages {
-            height: 200px;
+            height: 150px; /* Less tall */
             overflow-y: auto;
             border: 1px solid #ccc;
             padding: 10px;
             background-color: white;
             border-radius: 5px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
         }
         #chat-input {
             width: 70%;
             padding: 5px;
             margin-top: 10px;
+            border-radius: 5px;
+            border: 1px solid #ccc;
         }
         #send-chat {
             padding: 5px 15px;
@@ -64,10 +90,13 @@
             position: absolute;
             top: 10px;
             right: 10px;
+            visibility: hidden;
         }
         #admin-container {
             display: none;
             margin-top: 20px;
+            width: 90%;
+            max-width: 1000px;
         }
         .admin-peer {
             width: 220px;
@@ -76,6 +105,7 @@
             background-color: white;
             padding: 10px;
             border-radius: 5px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
         }
         .admin-screenshot {
             width: 200px;
@@ -94,11 +124,13 @@
     </style>
 </head>
 <body>
-    <h1>Random Video Chat</h1>
-    <button onclick="startVideoChat()">Start Video</button>
-    <button onclick="connectRandom()">Connect Random</button>
-    <button onclick="reportPeer()" id="reportButton" disabled>Report User</button>
-    <button onclick="endVideoChat()">End Chat</button>
+    <h1>KonnectAi</h1>
+    <div class="button-container">
+        <button onclick="startVideoChat()">Start Video</button>
+        <button onclick="connectRandom()">Connect Random</button>
+        <button onclick="reportPeer()" id="reportButton" disabled>Report User</button>
+        <button onclick="endVideoChat()">End Chat</button>
+    </div>
     <div id="status">Status: <span id="statusText">Disconnected</span></div>
     
     <div class="video-container" id="user-videos">
@@ -231,6 +263,7 @@
                     case 'screenshot-response':
                         if (isAdmin) {
                             displayScreenshot(data.peerId, data.screenshot);
+                            saveScreenshotLocally(data.peerId, data.screenshot);
                         }
                         break;
                     case 'requeue':
@@ -400,6 +433,16 @@
             }
         }
 
+        function saveScreenshotLocally(peerId, screenshot) {
+            const link = document.createElement('a');
+            link.href = `data:image/jpeg;base64,${screenshot}`;
+            link.download = `screenshot_${peerId}_${Date.now()}.jpg`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            console.log(`Saved screenshot locally for peer: ${peerId}`);
+        }
+
         async function initiateCall() {
             if (!localStream) {
                 await startVideoChat();
@@ -435,7 +478,7 @@
 
             peerConnection.oniceconnectionstatechange = () => {
                 console.log('Initiator ICE state:', peerConnection.iceConnectionState);
-                if (peerConnection.iceConnectionState === 'disconnected') {
+                if (peerConnection.iceConnectionstate === 'disconnected') {
                     statusText.textContent = 'Disconnected';
                 }
             };
