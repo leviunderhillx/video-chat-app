@@ -46,33 +46,33 @@
         }
         .video-container {
             display: flex;
-            gap: 20px; /* Reduced gap for better fit */
-            padding: 20px; /* Adjusted padding */
+            gap: 20px;
+            padding: 20px;
             background-color: #fff;
             border-radius: 10px;
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
             margin: 20px 0;
             flex-wrap: wrap;
             justify-content: center;
-            width: 95%; /* Nearly full width */
-            max-width: 1400px; /* Cap for larger screens */
+            width: 95%;
+            max-width: 1400px;
         }
         video {
-            width: 45vw; /* 45% of viewport width */
-            max-width: 640px; /* Cap at Omegle’s max size */
-            height: auto; /* Maintain aspect ratio */
+            width: 45vw;
+            max-width: 640px;
+            height: auto;
             background-color: #000;
             border-radius: 5px;
         }
-        @media (max-width: 768px) { /* Tablets and smaller */
+        @media (max-width: 768px) {
             video {
-                width: 80vw; /* Larger on smaller screens */
-                max-width: 100%; /* Full width if needed */
+                width: 80vw;
+                max-width: 100%;
             }
         }
-        @media (max-width: 480px) { /* Phones */
+        @media (max-width: 480px) {
             video {
-                width: 90vw; /* Nearly full width on phones */
+                width: 90vw;
             }
         }
         #chat-container {
@@ -504,6 +504,8 @@
                 console.log('Initiator ICE state:', peerConnection.iceConnectionState);
                 if (peerConnection.iceConnectionState === 'disconnected') {
                     statusText.textContent = 'Disconnected';
+                } else if (peerConnection.iceConnectionState === 'connected') {
+                    statusText.textContent = 'Connected';
                 }
             };
 
@@ -511,16 +513,22 @@
                 console.log('Initiator signaling state:', peerConnection.signalingState);
             };
 
-            await new Promise(resolve => setTimeout(resolve, 500)); // Ensure tracks are ready
-            const offer = await peerConnection.createOffer();
-            await peerConnection.setLocalDescription(offer);
-            console.log('Initiator sent offer:', offer.sdp.substring(0, 100) + '...');
-            ws.send(JSON.stringify({
-                type: 'offer',
-                offer: offer,
-                target: remotePeerId,
-                peerId: myPeerId
-            }));
+            try {
+                await new Promise(resolve => setTimeout(resolve, 500)); // Ensure tracks are ready
+                const offer = await peerConnection.createOffer();
+                await peerConnection.setLocalDescription(offer);
+                console.log('Initiator sent offer:', offer.sdp.substring(0, 100) + '...');
+                ws.send(JSON.stringify({
+                    type: 'offer',
+                    offer: offer,
+                    target: remotePeerId,
+                    peerId: myPeerId
+                }));
+            } catch (error) {
+                console.error('Error creating/sending offer:', error);
+                peerConnection.close();
+                await initiateCall(); // Retry on failure
+            }
         }
 
         async function handleOffer(data) {
@@ -587,20 +595,35 @@
 
         async function handleAnswer(data) {
             console.log('Initiator handling answer from:', remotePeerId);
-            if (peerConnection.signalingState !== 'have-local-offer') {
-                console.warn('Invalid signaling state for answer:', peerConnection.signalingState);
-                if (peerConnection) peerConnection.close();
-                peerConnection = new RTCPeerConnection(configuration);
-                localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
-                await initiateCall(); // Restart negotiation
+            if (!peerConnection) {
+                console.warn('No peerConnection exists, creating new one');
+                await initiateCall();
                 return;
             }
-            await peerConnection.setRemoteDescription(new RTCSessionDescription(data.answer));
-            console.log('Initiator set remote description, state:', peerConnection.signalingState);
+
+            if (peerConnection.signalingState === 'have-local-offer') {
+                try {
+                    await peerConnection.setRemoteDescription(new RTCSessionDescription(data.answer));
+                    console.log('Initiator set remote description, state:', peerConnection.signalingState);
+                } catch (error) {
+                    console.error('Error setting remote description:', error);
+                    await initiateCall(); // Restart if setting fails
+                }
+            } else {
+                console.warn('Received answer in unexpected state:', peerConnection.signalingState);
+                if (peerConnection.signalingState !== 'stable') {
+                    peerConnection.close();
+                    await initiateCall();
+                }
+            }
         }
 
         async function handleCandidate(data) {
             try {
+                if (!peerConnection || !peerConnection.remoteDescription) {
+                    console.log('Queueing ICE candidate until remote description is set:', data.candidate.candidate);
+                    return;
+                }
                 console.log('Handling ICE candidate:', data.candidate.candidate);
                 await peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
             } catch (error) {
