@@ -14,136 +14,46 @@
             flex-direction: column;
             align-items: center;
         }
-        h1 {
-            color: #333;
-            margin-bottom: 20px;
-        }
-        .button-container {
-            display: flex;
-            justify-content: center;
-            gap: 15px;
-            margin-bottom: 20px;
-        }
-        button {
-            padding: 10px 20px;
-            background-color: #4CAF50;
-            color: white;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-            transition: transform 0.2s, box-shadow 0.2s;
-        }
-        button:hover {
-            background-color: #45a049;
-            transform: translateY(-2px);
-            box-shadow: 0 6px 8px rgba(0, 0, 0, 0.2);
-        }
-        #status {
-            margin-top: 10px;
-            font-size: 14px;
-            color: #666;
-        }
+        h1 { color: #333; margin-bottom: 20px; }
+        .button-container { display: flex; justify-content: center; gap: 15px; margin-bottom: 20px; }
+        button { padding: 10px 20px; background-color: #4CAF50; color: white; border: none; border-radius: 5px; cursor: pointer; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); transition: transform 0.2s, box-shadow 0.2s; }
+        button:hover { background-color: #45a049; transform: translateY(-2px); box-shadow: 0 6px 8px rgba(0, 0, 0, 0.2); }
+        #status { margin-top: 10px; font-size: 14px; color: #666; }
         .video-container {
             display: flex;
-            gap: 20px; /* Reduced gap for better fit */
-            padding: 20px; /* Adjusted padding */
+            gap: 20px;
+            padding: 20px;
             background-color: #fff;
             border-radius: 10px;
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
             margin: 20px 0;
             flex-wrap: wrap;
             justify-content: center;
-            width: 95%; /* Nearly full width */
-            max-width: 1400px; /* Cap for larger screens */
+            width: 95%;
+            max-width: 1400px;
         }
         video {
-            width: 45vw; /* 45% of viewport width */
-            max-width: 640px; /* Cap at Omegle’s max size */
-            height: auto; /* Maintain aspect ratio */
+            /* Fixed dimensions to prevent resizing flicker */
+            width: 640px;
+            height: 480px;
             background-color: #000;
             border-radius: 5px;
+            object-fit: cover; /* Ensures video fills the space without distortion */
         }
-        @media (max-width: 768px) { /* Tablets and smaller */
-            video {
-                width: 80vw; /* Larger on smaller screens */
-                max-width: 100%; /* Full width if needed */
-            }
-        }
-        @media (max-width: 480px) { /* Phones */
-            video {
-                width: 90vw; /* Nearly full width on phones */
-            }
-        }
-        #chat-container {
-            width: 90%;
-            max-width: 1000px;
-            margin-top: 20px;
-        }
-        #chat-messages {
-            height: 150px;
-            overflow-y: auto;
-            border: 1px solid #ccc;
-            padding: 10px;
-            background-color: white;
-            border-radius: 5px;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-        }
-        #chat-input {
-            width: 70%;
-            padding: 5px;
-            margin-top: 10px;
-            border-radius: 5px;
-            border: 1px solid #ccc;
-        }
-        #send-chat {
-            padding: 5px 15px;
-            margin-left: 10px;
-        }
-        #admin-login {
-            position: absolute;
-            top: 10px;
-            right: 10px;
-            width: 120px;
-            height: 40px;
-        }
-        #admin-login button {
-            opacity: 0;
-            width: 100%;
-            height: 100%;
-            position: absolute;
-            top: 0;
-            left: 0;
-        }
-        #admin-container {
-            display: none;
-            margin-top: 20px;
-            width: 90%;
-            max-width: 1000px;
-        }
-        .admin-peer {
-            width: 220px;
-            margin: 5px;
-            position: relative;
-            background-color: white;
-            padding: 10px;
-            border-radius: 5px;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-        }
-        .admin-screenshot {
-            width: 200px;
-            height: auto;
-        }
-        .admin-ban-btn, .admin-screenshot-btn {
-            padding: 5px;
-            margin: 5px 0;
-        }
-        .admin-ban-btn {
-            background-color: #ff4444;
-        }
-        .admin-screenshot-btn {
-            background-color: #4CAF50;
-        }
+        @media (max-width: 768px) { video { width: 80vw; height: auto; } }
+        @media (max-width: 480px) { video { width: 90vw; height: auto; } }
+        #chat-container { width: 90%; max-width: 1000px; margin-top: 20px; }
+        #chat-messages { height: 150px; overflow-y: auto; border: 1px solid #ccc; padding: 10px; background-color: white; border-radius: 5px; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05); }
+        #chat-input { width: 70%; padding: 5px; margin-top: 10px; border-radius: 5px; border: 1px solid #ccc; }
+        #send-chat { padding: 5px 15px; margin-left: 10px; }
+        #admin-login { position: absolute; top: 10px; right: 10px; width: 120px; height: 40px; }
+        #admin-login button { opacity: 0; width: 100%; height: 100%; position: absolute; top: 0; left: 0; }
+        #admin-container { display: none; margin-top: 20px; width: 90%; max-width: 1000px; }
+        .admin-peer { width: 220px; margin: 5px; position: relative; background-color: white; padding: 10px; border-radius: 5px; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05); }
+        .admin-screenshot { width: 200px; height: auto; }
+        .admin-ban-btn, .admin-screenshot-btn { padding: 5px; margin: 5px 0; }
+        .admin-ban-btn { background-color: #ff4444; }
+        .admin-screenshot-btn { background-color: #4CAF50; }
     </style>
 </head>
 <body>
@@ -180,30 +90,28 @@
     <canvas id="screenshot-canvas" style="display:none;"></canvas>
 
     <script>
-        let localStream;
-        let peerConnection;
-        let ws;
-        let myPeerId;
-        let remotePeerId;
-        let isAdmin = false;
+        // --- Global Variables ---
+        let localStream;          // Stores the user's webcam/microphone stream
+        let peerConnection;       // WebRTC peer connection object
+        let ws;                   // WebSocket connection to the signaling server
+        let myPeerId;             // Unique ID assigned to this client
+        let remotePeerId;         // ID of the connected peer
+        let isAdmin = false;      // Tracks if this user is an admin
+        let iceCandidates = [];   // Buffer for ICE candidates until connection is ready
 
+        // --- WebRTC Configuration ---
         const configuration = {
             iceServers: [
                 { urls: 'stun:stun.l.google.com:19302' },
                 { urls: 'stun:stun1.l.google.com:19302' },
-                {
-                    urls: 'turn:openrelay.metered.ca:80',
-                    username: 'openrelayproject',
-                    credential: 'openrelayproject'
-                },
-                {
-                    urls: 'turn:openrelay.metered.ca:443',
-                    username: 'openrelayproject',
-                    credential: 'openrelayproject'
-                }
-            ]
+                { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
+                { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' }
+            ],
+            iceTransportPolicy: 'all', // Ensures all ICE candidates are considered
+            iceCandidatePoolSize: 10   // Pre-gathers more candidates for stability
         };
 
+        // --- DOM Elements ---
         const localVideo = document.getElementById('localVideo');
         const remoteVideo = document.getElementById('remoteVideo');
         const statusText = document.getElementById('statusText');
@@ -216,10 +124,12 @@
         const canvas = document.getElementById('screenshot-canvas');
         const ctx = canvas.getContext('2d');
 
+        // --- WebSocket Setup ---
         const SIGNALING_SERVER_URL = 'wss://video-chat-server-t6df.onrender.com';
         connectWebSocket();
 
         function connectWebSocket() {
+            // Establishes WebSocket connection to the signaling server
             ws = new WebSocket(SIGNALING_SERVER_URL);
 
             ws.onopen = () => {
@@ -229,77 +139,76 @@
 
             ws.onmessage = async (event) => {
                 const data = JSON.parse(event.data);
-                console.log('Received message:', JSON.stringify(data));
+                console.log('Received:', data);
 
                 switch (data.type) {
                     case 'connected':
+                        // Server assigns us a peer ID
                         myPeerId = data.peerId;
                         console.log('My peer ID:', myPeerId);
                         break;
                     case 'matched':
+                        // Server has matched us with another peer
                         remotePeerId = data.peerId;
-                        console.log('Matched with:', remotePeerId);
                         statusText.textContent = 'Matched with peer';
                         reportButton.disabled = false;
                         chatInput.disabled = false;
                         sendChatButton.disabled = false;
-                        initiateCall();
+                        await initiateCall();
                         break;
                     case 'chat':
-                        console.log('Received chat from:', data.sender, 'Message:', data.message);
+                        // Display incoming chat message
                         addChatMessage(data.message, data.sender === myPeerId ? 'You' : 'Them');
                         break;
                     case 'offer':
-                        remotePeerId = data.peerId;
-                        console.log('Received offer from:', remotePeerId);
+                        // Handle incoming WebRTC offer from another peer
                         await handleOffer(data);
                         break;
                     case 'answer':
-                        remotePeerId = remotePeerId || data.peerId;
-                        console.log('Received answer from:', remotePeerId);
+                        // Handle incoming WebRTC answer
                         await handleAnswer(data);
                         break;
                     case 'candidate':
-                        remotePeerId = remotePeerId || data.peerId;
-                        console.log('Received ICE candidate from:', remotePeerId, data.candidate.candidate);
-                        await handleCandidate(data);
+                        // Buffer ICE candidates until connection is stable
+                        if (peerConnection && peerConnection.remoteDescription) {
+                            await handleCandidate(data);
+                        } else {
+                            iceCandidates.push(data);
+                            console.log('Buffering ICE candidate:', data.candidate);
+                        }
                         break;
                     case 'peer-disconnected':
+                        // Peer has disconnected, clean up
                         if (data.peerId === remotePeerId) {
                             endVideoChat();
                             statusText.textContent = 'Peer disconnected';
                         }
                         break;
                     case 'banned':
+                        // User has been banned
                         endVideoChat();
                         alert(data.reason);
                         document.body.innerHTML = '<h1>You are banned from this service</h1>';
                         break;
                     case 'admin-update':
-                        if (isAdmin) {
-                            updateAdminView(data.peers);
-                        }
+                        // Update admin view with peer list
+                        if (isAdmin) updateAdminView(data.peers);
                         break;
                     case 'screenshot-request':
+                        // Send screenshot to admin
                         sendScreenshot(data.requester);
                         break;
                     case 'screenshot-response':
+                        // Display screenshot in admin view
                         if (isAdmin) {
                             displayScreenshot(data.peerId, data.screenshot);
                             saveScreenshotLocally(data.peerId, data.screenshot);
                         }
                         break;
                     case 'requeue':
-                        console.log('Requeued to waiting pool');
+                        // Rejoin the waiting pool
+                        cleanupConnection();
                         statusText.textContent = 'Waiting for match...';
-                        if (peerConnection) peerConnection.close();
-                        peerConnection = null;
-                        remoteVideo.srcObject = null;
-                        remotePeerId = null;
-                        chatMessages.innerHTML = '';
-                        reportButton.disabled = true;
-                        chatInput.disabled = true;
-                        sendChatButton.disabled = true;
                         await startVideoChat();
                         ws.send(JSON.stringify({ type: 'join' }));
                         break;
@@ -314,59 +223,61 @@
             ws.onclose = () => {
                 console.log('WebSocket closed');
                 statusText.textContent = 'Disconnected from server';
-                if (!isAdmin) connectWebSocket();
+                setTimeout(connectWebSocket, 1000); // Auto-reconnect after delay
             };
         }
 
         async function startVideoChat() {
+            // Starts the local video stream with retry logic
             try {
                 if (localStream) {
                     localStream.getTracks().forEach(track => track.stop());
+                    localStream = null;
                 }
                 localStream = await navigator.mediaDevices.getUserMedia({ 
-                    video: true, 
+                    video: { width: 640, height: 480 }, // Fixed resolution
                     audio: true 
                 });
                 localVideo.srcObject = localStream;
                 statusText.textContent = 'Video started';
-                console.log('Started local stream with tracks:', localStream.getTracks().map(t => `${t.kind}:${t.id}`));
             } catch (error) {
-                console.error('Error accessing media devices:', error.name, error.message);
-                statusText.textContent = `Error starting video: ${error.name}`;
+                console.error('Media error:', error);
+                statusText.textContent = 'Error starting video';
+                setTimeout(startVideoChat, 2000); // Retry after 2 seconds
             }
         }
 
         function connectRandom() {
+            // Requests a random peer match
             if (!localStream) {
                 statusText.textContent = 'Please start video first';
                 return;
             }
-            if (!myPeerId) {
-                statusText.textContent = 'Not connected to server';
-                console.log('WebSocket state:', ws.readyState);
+            if (ws.readyState !== WebSocket.OPEN) {
+                statusText.textContent = 'Server not connected';
+                connectWebSocket();
                 return;
             }
             ws.send(JSON.stringify({ type: 'join' }));
             statusText.textContent = 'Waiting for match...';
-            console.log('Requesting random match');
         }
 
         function reportPeer() {
+            // Reports the connected peer
             if (remotePeerId) {
                 ws.send(JSON.stringify({ 
                     type: 'report', 
                     reportedPeerId: remotePeerId,
                     myPeerId: myPeerId
                 }));
-                statusText.textContent = 'User reported, returning to pool';
-                console.log('Reported peer:', remotePeerId);
+                statusText.textContent = 'User reported';
             }
         }
 
         function sendChatMessage() {
+            // Sends a chat message to the remote peer
             const message = chatInput.value.trim();
             if (message && remotePeerId) {
-                console.log('Sending chat to:', remotePeerId, 'Message:', message);
                 ws.send(JSON.stringify({
                     type: 'chat',
                     message: message,
@@ -374,12 +285,11 @@
                 }));
                 addChatMessage(message, 'You');
                 chatInput.value = '';
-            } else {
-                console.log('Cannot send chat: remotePeerId missing:', remotePeerId);
             }
         }
 
         function addChatMessage(message, sender) {
+            // Adds a message to the chat window
             const messageElement = document.createElement('div');
             messageElement.textContent = `${sender}: ${message}`;
             chatMessages.appendChild(messageElement);
@@ -387,134 +297,70 @@
         }
 
         function showAdminLogin() {
+            // Shows the admin login panel
             adminContainer.style.display = 'block';
-            console.log('Admin login panel shown');
         }
 
         function adminLogin() {
+            // Attempts admin login
             const password = document.getElementById('admin-password').value;
             ws.send(JSON.stringify({ type: 'admin-login', password }));
             isAdmin = true;
-            console.log('Admin login attempted');
         }
 
         function updateAdminView(peers) {
+            // Updates the admin view with connected peers
             adminPeers.innerHTML = '';
             peers.forEach(peer => {
                 const peerContainer = document.createElement('div');
                 peerContainer.className = 'admin-peer';
                 peerContainer.id = `peer-${peer.peerId}`;
-
-                const screenshot = document.createElement('img');
-                screenshot.className = 'admin-screenshot';
-                screenshot.alt = 'No screenshot yet';
-
-                const screenshotButton = document.createElement('button');
-                screenshotButton.className = 'admin-screenshot-btn';
-                screenshotButton.textContent = 'Request Screenshot';
-                screenshotButton.onclick = () => {
-                    ws.send(JSON.stringify({ type: 'admin-screenshot-request', peerId: peer.peerId }));
-                };
-
-                const banButton = document.createElement('button');
-                banButton.className = 'admin-ban-btn';
-                banButton.textContent = 'Ban';
-                banButton.onclick = () => {
-                    ws.send(JSON.stringify({ type: 'admin-ban', peerId: peer.peerId }));
-                };
-
-                const label = document.createElement('div');
-                label.textContent = `Peer: ${peer.peerId} | IP: ${peer.ip}`;
-
-                peerContainer.appendChild(screenshot);
-                peerContainer.appendChild(screenshotButton);
-                peerContainer.appendChild(banButton);
-                peerContainer.appendChild(label);
+                peerContainer.innerHTML = `
+                    <img class="admin-screenshot" alt="No screenshot yet">
+                    <button class="admin-screenshot-btn" onclick="ws.send(JSON.stringify({ type: 'admin-screenshot-request', peerId: '${peer.peerId}' }))">Request Screenshot</button>
+                    <button class="admin-ban-btn" onclick="ws.send(JSON.stringify({ type: 'admin-ban', peerId: '${peer.peerId}' }))">Ban</button>
+                    <div>Peer: ${peer.peerId} | IP: ${peer.ip}</div>
+                `;
                 adminPeers.appendChild(peerContainer);
             });
         }
 
         function sendScreenshot(requester) {
+            // Captures and sends a screenshot of the local video
             if (!localStream) return;
             canvas.width = localVideo.videoWidth;
             canvas.height = localVideo.videoHeight;
-            ctx.drawImage(localVideo, 0, 0, canvas.width, canvas.height);
-            const screenshot = canvas.toDataURL('image/jpeg', 0.5);
+            ctx.drawImage(localVideo, 0, 0);
+            const screenshot = canvas.toDataURL('image/jpeg', 0.5).split(',')[1];
             ws.send(JSON.stringify({
                 type: 'screenshot-response',
                 requester: requester,
-                screenshot: screenshot.split(',')[1]
+                screenshot: screenshot
             }));
-            console.log('Sent screenshot to:', requester);
         }
 
         function displayScreenshot(peerId, screenshot) {
-            const peerContainer = document.getElementById(`peer-${peerId}`);
-            if (peerContainer) {
-                const img = peerContainer.querySelector('.admin-screenshot');
-                img.src = `data:image/jpeg;base64,${screenshot}`;
-                console.log('Displayed screenshot for:', peerId);
-            }
+            // Displays a screenshot in the admin view
+            const img = document.querySelector(`#peer-${peerId} .admin-screenshot`);
+            if (img) img.src = `data:image/jpeg;base64,${screenshot}`;
         }
 
         function saveScreenshotLocally(peerId, screenshot) {
+            // Saves a screenshot locally
             const link = document.createElement('a');
             link.href = `data:image/jpeg;base64,${screenshot}`;
             link.download = `screenshot_${peerId}_${Date.now()}.jpg`;
-            document.body.appendChild(link);
             link.click();
-            document.body.removeChild(link);
-            console.log(`Saved screenshot locally for peer: ${peerId}`);
         }
 
         async function initiateCall() {
-            if (!localStream) {
-                await startVideoChat();
-            }
-            if (peerConnection) {
-                peerConnection.close();
-                peerConnection = null;
-            }
+            // Initiates a WebRTC call as the offerer
+            cleanupConnection();
             peerConnection = new RTCPeerConnection(configuration);
-            console.log('Initiator created peerConnection, state:', peerConnection.signalingState);
-
-            localStream.getTracks().forEach(track => {
-                console.log('Initiator adding track:', track.kind, track.id);
-                peerConnection.addTrack(track, localStream);
-            });
-
-            peerConnection.ontrack = event => {
-                console.log('Initiator received remote stream, tracks:', event.streams[0].getTracks().map(t => `${t.kind}:${t.id}`));
-                remoteVideo.srcObject = event.streams[0];
-                statusText.textContent = 'Connected';
-            };
-
-            peerConnection.onicecandidate = event => {
-                if (event.candidate) {
-                    console.log('Initiator sending ICE candidate:', event.candidate.candidate);
-                    ws.send(JSON.stringify({
-                        type: 'candidate',
-                        candidate: event.candidate,
-                        target: remotePeerId
-                    }));
-                }
-            };
-
-            peerConnection.oniceconnectionstatechange = () => {
-                console.log('Initiator ICE state:', peerConnection.iceConnectionState);
-                if (peerConnection.iceConnectionState === 'disconnected') {
-                    statusText.textContent = 'Disconnected';
-                }
-            };
-
-            peerConnection.onsignalingstatechange = () => {
-                console.log('Initiator signaling state:', peerConnection.signalingState);
-            };
-
-            await new Promise(resolve => setTimeout(resolve, 500)); // Ensure tracks are ready
+            localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
+            setupPeerConnection();
             const offer = await peerConnection.createOffer();
             await peerConnection.setLocalDescription(offer);
-            console.log('Initiator sent offer:', offer.sdp.substring(0, 100) + '...');
             ws.send(JSON.stringify({
                 type: 'offer',
                 offer: offer,
@@ -524,35 +370,52 @@
         }
 
         async function handleOffer(data) {
-            remotePeerId = data.peerId;
-            console.log('Receiver handling offer from:', remotePeerId);
-            reportButton.disabled = false;
-            chatInput.disabled = false;
-            sendChatButton.disabled = false;
-            if (!localStream) {
-                await startVideoChat();
-            }
-            if (peerConnection) {
-                peerConnection.close();
-                peerConnection = null;
-            }
+            // Handles an incoming WebRTC offer
+            cleanupConnection();
             peerConnection = new RTCPeerConnection(configuration);
-            console.log('Receiver created peerConnection, state:', peerConnection.signalingState);
+            localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
+            setupPeerConnection();
+            await peerConnection.setRemoteDescription(new RTCSessionDescription(data.offer));
+            const answer = await peerConnection.createAnswer();
+            await peerConnection.setLocalDescription(answer);
+            ws.send(JSON.stringify({
+                type: 'answer',
+                answer: answer,
+                target: data.peerId,
+                peerId: myPeerId
+            }));
+            // Apply buffered ICE candidates
+            iceCandidates.forEach(async candidate => await handleCandidate(candidate));
+            iceCandidates = [];
+        }
 
-            localStream.getTracks().forEach(track => {
-                console.log('Receiver adding track:', track.kind, track.id);
-                peerConnection.addTrack(track, localStream);
-            });
+        async function handleAnswer(data) {
+            // Handles an incoming WebRTC answer
+            if (peerConnection) {
+                await peerConnection.setRemoteDescription(new RTCSessionDescription(data.answer));
+                // Apply buffered ICE candidates
+                iceCandidates.forEach(async candidate => await handleCandidate(candidate));
+                iceCandidates = [];
+            }
+        }
 
+        async function handleCandidate(data) {
+            // Adds an ICE candidate to the peer connection
+            try {
+                await peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
+            } catch (error) {
+                console.error('ICE candidate error:', error);
+            }
+        }
+
+        function setupPeerConnection() {
+            // Configures event handlers for the peer connection
             peerConnection.ontrack = event => {
-                console.log('Receiver received remote stream, tracks:', event.streams[0].getTracks().map(t => `${t.kind}:${t.id}`));
                 remoteVideo.srcObject = event.streams[0];
                 statusText.textContent = 'Connected';
             };
-
             peerConnection.onicecandidate = event => {
                 if (event.candidate) {
-                    console.log('Receiver sending ICE candidate:', event.candidate.candidate);
                     ws.send(JSON.stringify({
                         type: 'candidate',
                         candidate: event.candidate,
@@ -560,55 +423,26 @@
                     }));
                 }
             };
-
             peerConnection.oniceconnectionstatechange = () => {
-                console.log('Receiver ICE state:', peerConnection.iceConnectionState);
-                if (peerConnection.iceConnectionState === 'disconnected') {
-                    statusText.textContent = 'Disconnected';
+                console.log('ICE state:', peerConnection.iceConnectionState);
+                if (peerConnection.iceConnectionState === 'disconnected' || peerConnection.iceConnectionState === 'failed') {
+                    endVideoChat();
                 }
             };
-
-            peerConnection.onsignalingstatechange = () => {
-                console.log('Receiver signaling state:', peerConnection.signalingState);
-            };
-
-            await peerConnection.setRemoteDescription(new RTCSessionDescription(data.offer));
-            await new Promise(resolve => setTimeout(resolve, 500)); // Ensure tracks are ready
-            const answer = await peerConnection.createAnswer();
-            await peerConnection.setLocalDescription(answer);
-            console.log('Receiver sent answer:', answer.sdp.substring(0, 100) + '...');
-            ws.send(JSON.stringify({
-                type: 'answer',
-                answer: answer,
-                target: remotePeerId,
-                peerId: myPeerId
-            }));
         }
 
-        async function handleAnswer(data) {
-            console.log('Initiator handling answer from:', remotePeerId);
-            if (peerConnection.signalingState !== 'have-local-offer') {
-                console.warn('Invalid signaling state for answer:', peerConnection.signalingState);
-                if (peerConnection) peerConnection.close();
-                peerConnection = new RTCPeerConnection(configuration);
-                localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
-                await initiateCall(); // Restart negotiation
-                return;
+        function cleanupConnection() {
+            // Cleans up existing peer connection
+            if (peerConnection) {
+                peerConnection.close();
+                peerConnection = null;
             }
-            await peerConnection.setRemoteDescription(new RTCSessionDescription(data.answer));
-            console.log('Initiator set remote description, state:', peerConnection.signalingState);
-        }
-
-        async function handleCandidate(data) {
-            try {
-                console.log('Handling ICE candidate:', data.candidate.candidate);
-                await peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
-            } catch (error) {
-                console.error('Error adding ICE candidate:', error);
-            }
+            iceCandidates = [];
+            remoteVideo.srcObject = null;
         }
 
         function endVideoChat() {
+            // Ends the current chat and rejoins the pool
             if (remotePeerId) {
                 ws.send(JSON.stringify({
                     type: 'end-chat',
@@ -616,32 +450,23 @@
                     target: remotePeerId
                 }));
             }
-            if (peerConnection) {
-                peerConnection.close();
-                peerConnection = null;
-            }
+            cleanupConnection();
             if (localStream) {
                 localStream.getTracks().forEach(track => track.stop());
                 localStream = null;
             }
             localVideo.srcObject = null;
-            remoteVideo.srcObject = null;
             remotePeerId = null;
             reportButton.disabled = true;
             chatInput.disabled = true;
             sendChatButton.disabled = true;
             chatMessages.innerHTML = '';
             statusText.textContent = 'Waiting for match...';
-            console.log('Chat ended, rejoining pool');
-            startVideoChat().then(() => {
-                ws.send(JSON.stringify({ type: 'join' }));
-            });
+            startVideoChat().then(() => ws.send(JSON.stringify({ type: 'join' })));
         }
 
         chatInput.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') {
-                sendChatMessage();
-            }
+            if (e.key === 'Enter') sendChatMessage();
         });
     </script>
 </body>
