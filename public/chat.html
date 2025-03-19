@@ -50,6 +50,7 @@
         let remotePlayerId;
         let isVideoOn = false;
         let pendingCandidates = [];
+        let currentStreamId = null;
 
         const configuration = {
             iceServers: [
@@ -91,6 +92,10 @@
                         statusText.textContent = `Connected as ${myPlayerId}`;
                         break;
                     case 'matched':
+                        if (remotePlayerId) {
+                            console.log('Already matched with:', remotePlayerId, 'ignoring new match');
+                            return;
+                        }
                         remotePlayerId = data.playerId;
                         console.log('Matched with:', remotePlayerId);
                         statusText.textContent = `Matched with ${remotePlayerId}`;
@@ -106,6 +111,10 @@
                         break;
                     case 'offer':
                         console.log('Offer from:', data.playerId);
+                        if (remotePlayerId && remotePlayerId !== data.playerId) {
+                            console.log('Ignoring offer from unexpected peer:', data.playerId);
+                            return;
+                        }
                         remotePlayerId = data.playerId;
                         await handleOffer(data);
                         break;
@@ -232,7 +241,6 @@
 
         async function initiateCall() {
             console.log('Initiating call with remotePlayerId:', remotePlayerId);
-            cleanupConnection();
             peerConnection = new RTCPeerConnection(configuration);
 
             localStream.getTracks().forEach(track => {
@@ -249,7 +257,6 @@
 
         async function handleOffer(data) {
             console.log('Handling offer with remotePlayerId:', remotePlayerId);
-            cleanupConnection();
             peerConnection = new RTCPeerConnection(configuration);
 
             localStream.getTracks().forEach(track => {
@@ -299,9 +306,15 @@
 
         function setupPeerConnection() {
             peerConnection.ontrack = event => {
-                console.log('Received remote stream:', event.streams[0].id);
-                remoteVideo.srcObject = event.streams[0];
-                remoteVideo.play().catch(e => console.error('Error playing remote video:', e));
+                const streamId = event.streams[0].id;
+                console.log('Received remote stream:', streamId);
+                if (currentStreamId !== streamId) {
+                    currentStreamId = streamId;
+                    remoteVideo.srcObject = event.streams[0];
+                    setTimeout(() => {
+                        remoteVideo.play().catch(e => console.error('Error playing remote video:', e));
+                    }, 500); // Delay to ensure stream is ready
+                }
                 statusText.textContent = `Connected to ${remotePlayerId}`;
             };
 
@@ -317,7 +330,6 @@
                 if (peerConnection.iceConnectionState === 'disconnected' || peerConnection.iceConnectionState === 'failed') {
                     endCall();
                     statusText.textContent = 'Connection lost';
-                    if (isVideoOn) ws.send(JSON.stringify({ type: 'join' }));
                 } else if (peerConnection.iceConnectionState === 'connected') {
                     console.log('ICE connection established');
                 }
@@ -330,7 +342,7 @@
                 peerConnection = null;
                 console.log('Peer connection closed');
                 pendingCandidates = [];
-                remoteVideo.srcObject = null;
+                currentStreamId = null;
             }
         }
 
