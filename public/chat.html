@@ -100,7 +100,10 @@
                         reportButton.disabled = false;
                         chatInput.disabled = false;
                         sendChatButton.disabled = false;
-                        await initiateCall();
+                        // Only Player 1 initiates call
+                        if (myPlayerId < remotePlayerId) {
+                            await initiateCall();
+                        }
                         break;
                     case 'chat':
                         addChatMessage(data.message, data.sender === myPlayerId ? 'You' : remotePlayerId);
@@ -115,7 +118,7 @@
                         await handleAnswer(data);
                         break;
                     case 'candidate':
-                        console.log('Candidate from:', data.playerId);
+                        console.log('Candidate from:', data.playerId || 'unknown');
                         await handleCandidate(data);
                         break;
                     case 'peer-disconnected':
@@ -132,7 +135,6 @@
                         sendChatButton.disabled = true;
                         chatMessages.innerHTML = '';
                         statusText.textContent = 'Peer ended call';
-                        // Do not auto-rejoin pool unless video is explicitly restarted
                         break;
                 }
             };
@@ -279,7 +281,7 @@
         }
 
         async function handleAnswer(data) {
-            if (peerConnection) {
+            if (peerConnection && peerConnection.signalingState === 'have-local-offer') {
                 await peerConnection.setRemoteDescription(new RTCSessionDescription(data.answer));
                 console.log('Set remote answer from:', data.playerId);
                 for (const candidate of pendingCandidates) {
@@ -287,7 +289,7 @@
                 }
                 pendingCandidates = [];
             } else {
-                console.error('No peer connection to handle answer');
+                console.error('Cannot handle answer; invalid state:', peerConnection ? peerConnection.signalingState : 'no peerConnection');
             }
         }
 
@@ -295,7 +297,7 @@
             if (peerConnection && peerConnection.remoteDescription) {
                 try {
                     await peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
-                    console.log('Added ICE candidate from:', data.playerId);
+                    console.log('Added ICE candidate from:', data.playerId || 'unknown');
                 } catch (error) {
                     console.error('Error adding ICE candidate:', error);
                 }
@@ -309,13 +311,14 @@
             peerConnection.ontrack = event => {
                 console.log('Received remote stream:', event.streams[0].id);
                 remoteVideo.srcObject = event.streams[0];
+                remoteVideo.play().catch(e => console.error('Error playing remote video:', e));
                 statusText.textContent = `Connected to ${remotePlayerId}`;
             };
 
             peerConnection.onicecandidate = event => {
                 if (event.candidate) {
                     console.log('Sending ICE candidate to:', remotePlayerId);
-                    ws.send(JSON.stringify({ type: 'candidate', candidate: event.candidate, target: remotePlayerId }));
+                    ws.send(JSON.stringify({ type: 'candidate', candidate: event.candidate, target: remotePlayerId, playerId: myPlayerId }));
                 }
             };
 
