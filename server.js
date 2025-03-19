@@ -103,7 +103,6 @@ wss.on('connection', (ws, req) => {
                 broadcastAdminUpdate();
                 break;
             case 'stop-video':
-                // Handle one peer stopping their video
                 myPeerId = data.myPeerId;
                 targetPeerId = data.target;
                 targetWs = peers.get(targetPeerId);
@@ -113,7 +112,27 @@ wss.on('connection', (ws, req) => {
                     waitingPool.add(targetPeerId);
                     console.log(`Requeued ${targetPeerId} due to ${myPeerId} stopping video`);
                 }
-                waitingPool.delete(myPeerId); // Remove the stopping peer from pool
+                waitingPool.delete(myPeerId);
+                broadcastAdminUpdate();
+                break;
+            case 'skip-chat':
+                // Handle skipping current chat and requeuing both peers
+                myPeerId = data.myPeerId;
+                targetPeerId = data.target;
+                myWs = peers.get(myPeerId);
+                targetWs = peers.get(targetPeerId);
+
+                if (myWs && myWs.readyState === WebSocket.OPEN) {
+                    myWs.send(JSON.stringify({ type: 'requeue' }));
+                    waitingPool.add(myPeerId);
+                    console.log(`Requeued ${myPeerId} due to skipping chat`);
+                }
+                if (targetWs && targetWs.readyState === WebSocket.OPEN) {
+                    targetWs.send(JSON.stringify({ type: 'requeue' }));
+                    waitingPool.add(targetPeerId);
+                    console.log(`Requeued ${targetPeerId} due to ${myPeerId} skipping chat`);
+                }
+                connectRandomPeers();
                 broadcastAdminUpdate();
                 break;
             case 'report':

@@ -268,8 +268,7 @@
                 statusText.textContent = 'Video stopped';
                 videoToggleButton.textContent = 'Start Video';
                 isVideoOn = false;
-                if (ws.readyState === WebSocket.OPEN) {
-                    // Notify server to end chat and requeue the other peer
+                if (ws.readyState === WebSocket.OPEN && remotePeerId) {
                     ws.send(JSON.stringify({ 
                         type: 'stop-video', 
                         myPeerId: myPeerId, 
@@ -295,8 +294,23 @@
                 connectWebSocket();
                 return;
             }
+            if (remotePeerId) {
+                // If already connected, skip current chat and requeue both peers
+                ws.send(JSON.stringify({ 
+                    type: 'skip-chat', 
+                    myPeerId: myPeerId, 
+                    target: remotePeerId 
+                }));
+                cleanupConnection();
+                remotePeerId = null;
+                reportButton.disabled = true;
+                chatInput.disabled = true;
+                sendChatButton.disabled = true;
+                chatMessages.innerHTML = '';
+                statusText.textContent = 'Waiting for match...';
+            }
+            // Always join the pool (whether skipping or starting fresh)
             ws.send(JSON.stringify({ type: 'join' }));
-            statusText.textContent = 'Waiting for match...';
         }
 
         function reportPeer() {
