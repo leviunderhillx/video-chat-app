@@ -56,6 +56,7 @@
             iceServers: [
                 { urls: 'stun:stun.l.google.com:19302' },
                 { urls: 'stun:stun1.l.google.com:19302' },
+                { urls: 'turn:turn.anyfirewall.com:443?transport=tcp', username: 'webrtc', credential: 'webrtc' },
                 { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
                 { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' }
             ]
@@ -311,9 +312,7 @@
                 if (currentStreamId !== streamId) {
                     currentStreamId = streamId;
                     remoteVideo.srcObject = event.streams[0];
-                    setTimeout(() => {
-                        remoteVideo.play().catch(e => console.error('Error playing remote video:', e));
-                    }, 500);
+                    // Play only when ICE is connected
                 }
                 statusText.textContent = `Connected to ${remoteUserId.slice(0, 8)}...`;
             };
@@ -327,11 +326,17 @@
 
             peerConnection.oniceconnectionstatechange = () => {
                 console.log('ICE state:', peerConnection.iceConnectionState);
-                if (peerConnection.iceConnectionState === 'disconnected' || peerConnection.iceConnectionState === 'failed') {
+                if (peerConnection.iceConnectionState === 'connected') {
+                    console.log('ICE connection established');
+                    if (remoteVideo.srcObject && !remoteVideo.paused) {
+                        remoteVideo.play().catch(e => console.error('Error playing remote video:', e));
+                    }
+                } else if (peerConnection.iceConnectionState === 'disconnected' || peerConnection.iceConnectionState === 'failed') {
+                    console.error('ICE failed with state:', peerConnection.iceConnectionState);
+                    console.log('Local candidates:', peerConnection.localDescription?.sdp);
+                    console.log('Remote candidates:', peerConnection.remoteDescription?.sdp);
                     endCall();
                     statusText.textContent = 'Connection lost';
-                } else if (peerConnection.iceConnectionState === 'connected') {
-                    console.log('ICE connection established');
                 }
             };
         }
@@ -343,6 +348,7 @@
                 console.log('Peer connection closed');
                 pendingCandidates = [];
                 currentStreamId = null;
+                remoteVideo.srcObject = null;
             }
         }
 
