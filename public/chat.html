@@ -46,8 +46,8 @@
         let localStream;
         let peerConnection;
         let ws;
-        let myPlayerId;
-        let remotePlayerId;
+        let myUserId;
+        let remoteUserId;
         let isVideoOn = false;
         let pendingCandidates = [];
         let currentStreamId = null;
@@ -87,35 +87,35 @@
 
                 switch (data.type) {
                     case 'connected':
-                        myPlayerId = data.playerId;
-                        console.log('Assigned ID:', myPlayerId);
-                        statusText.textContent = `Connected as ${myPlayerId}`;
+                        myUserId = data.userId;
+                        console.log('Assigned ID:', myUserId);
+                        statusText.textContent = `Connected as ${myUserId.slice(0, 8)}...`;
                         break;
                     case 'matched':
-                        if (remotePlayerId) {
-                            console.log('Already matched with:', remotePlayerId, 'ignoring new match');
+                        if (remoteUserId) {
+                            console.log('Already matched with:', remoteUserId, 'ignoring new match');
                             return;
                         }
-                        remotePlayerId = data.playerId;
-                        console.log('Matched with:', remotePlayerId);
-                        statusText.textContent = `Matched with ${remotePlayerId}`;
+                        remoteUserId = data.peerId;
+                        console.log('Matched with:', remoteUserId);
+                        statusText.textContent = `Matched with ${remoteUserId.slice(0, 8)}...`;
                         reportButton.disabled = false;
                         chatInput.disabled = false;
                         sendChatButton.disabled = false;
-                        if (myPlayerId < remotePlayerId) {
+                        if (myUserId < remoteUserId) {
                             await initiateCall();
                         }
                         break;
                     case 'chat':
-                        addChatMessage(data.message, data.sender === myPlayerId ? 'You' : remotePlayerId);
+                        addChatMessage(data.message, data.sender === myUserId ? 'You' : remoteUserId.slice(0, 8));
                         break;
                     case 'offer':
                         console.log('Offer from:', data.playerId);
-                        if (remotePlayerId && remotePlayerId !== data.playerId) {
+                        if (remoteUserId && remoteUserId !== data.playerId) {
                             console.log('Ignoring offer from unexpected peer:', data.playerId);
                             return;
                         }
-                        remotePlayerId = data.playerId;
+                        remoteUserId = data.playerId;
                         await handleOffer(data);
                         break;
                     case 'answer':
@@ -127,14 +127,14 @@
                         await handleCandidate(data);
                         break;
                     case 'peer-disconnected':
-                        if (data.playerId === remotePlayerId) {
+                        if (data.userId === remoteUserId) {
                             endCall();
-                            statusText.textContent = `${remotePlayerId} disconnected`;
+                            statusText.textContent = `${remoteUserId.slice(0, 8)}... disconnected`;
                         }
                         break;
                     case 'requeue':
                         cleanupConnection();
-                        remotePlayerId = null;
+                        remoteUserId = null;
                         reportButton.disabled = true;
                         chatInput.disabled = true;
                         sendChatButton.disabled = true;
@@ -184,8 +184,8 @@
                 statusText.textContent = 'Video stopped';
                 videoToggleButton.textContent = 'Start Video';
                 isVideoOn = false;
-                if (remotePlayerId && ws.readyState === WebSocket.OPEN) {
-                    ws.send(JSON.stringify({ type: 'stop-video', myPlayerId: myPlayerId, target: remotePlayerId }));
+                if (remoteUserId && ws.readyState === WebSocket.OPEN) {
+                    ws.send(JSON.stringify({ type: 'stop-video', myUserId, target: remoteUserId }));
                 }
                 endCall();
             }
@@ -200,11 +200,11 @@
                 statusText.textContent = 'Server not connected';
                 return;
             }
-            if (remotePlayerId) {
-                console.log('Ending call with:', remotePlayerId);
-                ws.send(JSON.stringify({ type: 'skip-chat', myPlayerId: myPlayerId, target: remotePlayerId }));
+            if (remoteUserId) {
+                console.log('Ending call with:', remoteUserId);
+                ws.send(JSON.stringify({ type: 'skip-chat', myUserId, target: remoteUserId }));
                 cleanupConnection();
-                remotePlayerId = null;
+                remoteUserId = null;
                 reportButton.disabled = true;
                 chatInput.disabled = true;
                 sendChatButton.disabled = true;
@@ -215,8 +215,8 @@
         }
 
         function reportPeer() {
-            if (remotePlayerId && ws.readyState === WebSocket.OPEN) {
-                ws.send(JSON.stringify({ type: 'report', reportedPlayerId: remotePlayerId, myPlayerId: myPlayerId }));
+            if (remoteUserId && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ type: 'report', reportedUserId: remoteUserId, myUserId }));
                 statusText.textContent = 'User reported';
                 endCall();
                 ws.send(JSON.stringify({ type: 'join' }));
@@ -225,8 +225,8 @@
 
         function sendChatMessage() {
             const message = chatInput.value.trim();
-            if (message && remotePlayerId && ws.readyState === WebSocket.OPEN) {
-                ws.send(JSON.stringify({ type: 'chat', message: message, target: remotePlayerId }));
+            if (message && remoteUserId && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ type: 'chat', message, target: remoteUserId, sender: myUserId }));
                 addChatMessage(message, 'You');
                 chatInput.value = '';
             }
@@ -240,7 +240,7 @@
         }
 
         async function initiateCall() {
-            console.log('Initiating call with remotePlayerId:', remotePlayerId);
+            console.log('Initiating call with remoteUserId:', remoteUserId);
             peerConnection = new RTCPeerConnection(configuration);
 
             localStream.getTracks().forEach(track => {
@@ -251,12 +251,12 @@
             setupPeerConnection();
             const offer = await peerConnection.createOffer();
             await peerConnection.setLocalDescription(offer);
-            console.log('Sending offer to:', remotePlayerId);
-            ws.send(JSON.stringify({ type: 'offer', offer: offer, target: remotePlayerId, playerId: myPlayerId }));
+            console.log('Sending offer to:', remoteUserId);
+            ws.send(JSON.stringify({ type: 'offer', offer, target: remoteUserId, playerId: myUserId }));
         }
 
         async function handleOffer(data) {
-            console.log('Handling offer with remotePlayerId:', remotePlayerId);
+            console.log('Handling offer with remoteUserId:', remoteUserId);
             peerConnection = new RTCPeerConnection(configuration);
 
             localStream.getTracks().forEach(track => {
@@ -268,8 +268,8 @@
             await peerConnection.setRemoteDescription(new RTCSessionDescription(data.offer));
             const answer = await peerConnection.createAnswer();
             await peerConnection.setLocalDescription(answer);
-            console.log('Sending answer to:', remotePlayerId);
-            ws.send(JSON.stringify({ type: 'answer', answer: answer, target: remotePlayerId, playerId: myPlayerId }));
+            console.log('Sending answer to:', remoteUserId);
+            ws.send(JSON.stringify({ type: 'answer', answer, target: remoteUserId, playerId: myUserId }));
 
             for (const candidate of pendingCandidates) {
                 await handleCandidate(candidate);
@@ -313,15 +313,15 @@
                     remoteVideo.srcObject = event.streams[0];
                     setTimeout(() => {
                         remoteVideo.play().catch(e => console.error('Error playing remote video:', e));
-                    }, 500); // Delay to ensure stream is ready
+                    }, 500);
                 }
-                statusText.textContent = `Connected to ${remotePlayerId}`;
+                statusText.textContent = `Connected to ${remoteUserId.slice(0, 8)}...`;
             };
 
             peerConnection.onicecandidate = event => {
                 if (event.candidate) {
-                    console.log('Sending ICE candidate to:', remotePlayerId);
-                    ws.send(JSON.stringify({ type: 'candidate', candidate: event.candidate, target: remotePlayerId, playerId: myPlayerId }));
+                    console.log('Sending ICE candidate to:', remoteUserId);
+                    ws.send(JSON.stringify({ type: 'candidate', candidate: event.candidate, target: remoteUserId, playerId: myUserId }));
                 }
             };
 
@@ -348,7 +348,7 @@
 
         function endCall() {
             cleanupConnection();
-            remotePlayerId = null;
+            remoteUserId = null;
             reportButton.disabled = true;
             chatInput.disabled = true;
             sendChatButton.disabled = true;
