@@ -4,12 +4,12 @@ const port = process.env.PORT || 10000;
 const wss = new WebSocket.Server({ port });
 
 // --- Data Structures ---
-let peers = new Map();          // Maps playerId (e.g., "Player 1") to WebSocket
-let waitingPool = new Set();    // Set of playerIds waiting to be matched
-let reports = new Map();        // Tracks reports per IP
-let bannedIPs = new Set();      // Banned IPs
-let availablePlayerIds = ['Player 1', 'Player 2', 'Player 3', 'Player 4', 'Player 5']; // Pool of reusable IDs
-let usedPlayerIds = new Set();  // Tracks currently used IDs
+let peers = new Map();
+let waitingPool = new Set();
+let reports = new Map();
+let bannedIPs = new Set();
+let availablePlayerIds = ['Player 1', 'Player 2', 'Player 3', 'Player 4', 'Player 5'];
+let usedPlayerIds = new Set();
 
 function assignPlayerId() {
     for (let id of availablePlayerIds) {
@@ -18,7 +18,7 @@ function assignPlayerId() {
             return id;
         }
     }
-    return null; // No available IDs
+    return null;
 }
 
 function releasePlayerId(playerId) {
@@ -27,6 +27,7 @@ function releasePlayerId(playerId) {
 
 function connectRandomPeers() {
     const waitingArray = Array.from(waitingPool);
+    console.log('Waiting pool:', waitingArray);
     if (waitingArray.length < 2) return;
 
     const player1Id = waitingArray[0];
@@ -41,8 +42,16 @@ function connectRandomPeers() {
         waitingPool.delete(player1Id);
         waitingPool.delete(player2Id);
     } else {
-        if (!player1 || player1.readyState !== WebSocket.OPEN) waitingPool.delete(player1Id);
-        if (!player2 || player2.readyState !== WebSocket.OPEN) waitingPool.delete(player2Id);
+        if (!player1 || player1.readyState !== WebSocket.OPEN) {
+            waitingPool.delete(player1Id);
+            releasePlayerId(player1Id);
+            peers.delete(player1Id);
+        }
+        if (!player2 || player2.readyState !== WebSocket.OPEN) {
+            waitingPool.delete(player2Id);
+            releasePlayerId(player2Id);
+            peers.delete(player2Id);
+        }
         setTimeout(connectRandomPeers, 1000);
     }
 }
@@ -154,7 +163,7 @@ wss.on('connection', (ws, req) => {
                     waitingPool.add(targetPlayerId);
                     console.log(`Requeued ${targetPlayerId} due to ${myPlayerId} skipping chat`);
                 }
-                setTimeout(connectRandomPeers, 3000);
+                setTimeout(connectRandomPeers, 5000); // Match 5-second countdown
                 broadcastAdminUpdate();
                 break;
             case 'report':

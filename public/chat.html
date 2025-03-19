@@ -103,11 +103,12 @@
         let localStream;
         let peerConnection;
         let ws;
-        let myPlayerId; // Now using "Player X" instead of random ID
+        let myPlayerId;
         let remotePlayerId;
         let isAdmin = false;
         let iceCandidates = [];
         let isVideoOn = false;
+        let countdownInterval;
 
         // --- WebRTC Configuration ---
         const configuration = {
@@ -153,7 +154,7 @@
 
                 switch (data.type) {
                     case 'connected':
-                        myPlayerId = data.playerId; // Now "Player X"
+                        myPlayerId = data.playerId;
                         console.log('My player ID:', myPlayerId);
                         statusText.textContent = `Connected as ${myPlayerId}`;
                         break;
@@ -309,16 +310,29 @@
                 chatInput.disabled = true;
                 sendChatButton.disabled = true;
                 chatMessages.innerHTML = '';
-                statusText.textContent = 'Waiting for match...';
-                setTimeout(() => {
-                    if (isVideoOn && ws.readyState === WebSocket.OPEN) {
-                        ws.send(JSON.stringify({ type: 'join' }));
-                    }
-                }, 3000);
+                startCountdown(5); // Start 5-second countdown
             } else {
                 ws.send(JSON.stringify({ type: 'join' }));
                 statusText.textContent = 'Waiting for match...';
             }
+        }
+
+        function startCountdown(seconds) {
+            let timeLeft = seconds;
+            statusText.textContent = `Attempting to connect to new player in ${timeLeft}`;
+            clearInterval(countdownInterval); // Clear any existing countdown
+            countdownInterval = setInterval(() => {
+                timeLeft--;
+                if (timeLeft > 0) {
+                    statusText.textContent = `Attempting to connect to new player in ${timeLeft}`;
+                } else {
+                    statusText.textContent = 'Waiting for match...';
+                    clearInterval(countdownInterval);
+                    if (isVideoOn && ws.readyState === WebSocket.OPEN) {
+                        ws.send(JSON.stringify({ type: 'join' }));
+                    }
+                }
+            }, 1000);
         }
 
         function reportPeer() {
@@ -413,6 +427,7 @@
             setupPeerConnection();
             const offer = await peerConnection.createOffer();
             await peerConnection.setLocalDescription(offer);
+            console.log('Sending offer to:', remotePlayerId);
             ws.send(JSON.stringify({
                 type: 'offer',
                 offer: offer,
@@ -432,6 +447,7 @@
             await peerConnection.setRemoteDescription(new RTCSessionDescription(data.offer));
             const answer = await peerConnection.createAnswer();
             await peerConnection.setLocalDescription(answer);
+            console.log('Sending answer to:', data.playerId);
             ws.send(JSON.stringify({
                 type: 'answer',
                 answer: answer,
@@ -453,6 +469,7 @@
         async function handleCandidate(data) {
             try {
                 await peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
+                console.log('Added ICE candidate');
             } catch (error) {
                 console.error('ICE candidate error:', error);
             }
@@ -466,6 +483,7 @@
             };
             peerConnection.onicecandidate = event => {
                 if (event.candidate) {
+                    console.log('Sending ICE candidate to:', remotePlayerId);
                     ws.send(JSON.stringify({
                         type: 'candidate',
                         candidate: event.candidate,
