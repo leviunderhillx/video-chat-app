@@ -139,7 +139,7 @@
                         await handleAnswer(data);
                         break;
                     case 'candidate':
-                        console.log('Handling candidate from:', data.playerId);
+                        console.log('Handling candidate from:', data.playerId || 'undefined');
                         if (peerConnection && peerConnection.remoteDescription) {
                             await handleCandidate(data);
                         } else {
@@ -360,7 +360,7 @@
         }
 
         async function initiateCall() {
-            cleanupConnection();
+            cleanupConnection(); // Ensure fresh connection
             peerConnection = new RTCPeerConnection(configuration);
             localStream.getTracks().forEach(track => {
                 peerConnection.addTrack(track, localStream);
@@ -374,7 +374,7 @@
         }
 
         async function handleOffer(data) {
-            cleanupConnection();
+            cleanupConnection(); // Ensure fresh connection
             peerConnection = new RTCPeerConnection(configuration);
             localStream.getTracks().forEach(track => {
                 peerConnection.addTrack(track, localStream);
@@ -391,23 +391,24 @@
         }
 
         async function handleAnswer(data) {
-            if (peerConnection) {
+            if (peerConnection && peerConnection.signalingState === 'have-local-offer') {
                 await peerConnection.setRemoteDescription(new RTCSessionDescription(data.answer));
                 console.log('Set remote description from answer');
                 iceCandidates.forEach(async candidate => await handleCandidate(candidate));
                 iceCandidates = [];
             } else {
-                console.error('No peerConnection to handle answer');
+                console.error('Cannot handle answer; invalid state:', peerConnection ? peerConnection.signalingState : 'no peerConnection');
             }
         }
 
         async function handleCandidate(data) {
             try {
-                if (peerConnection) {
+                if (peerConnection && peerConnection.remoteDescription) {
                     await peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
                     console.log('Added ICE candidate');
                 } else {
-                    console.error('No peerConnection to add ICE candidate');
+                    console.log('Queuing ICE candidate; no remote description yet');
+                    iceCandidates.push(data);
                 }
             } catch (error) {
                 console.error('ICE candidate error:', error);
@@ -430,21 +431,21 @@
                 console.log('ICE state:', peerConnection.iceConnectionState);
                 if (peerConnection.iceConnectionState === 'disconnected' || peerConnection.iceConnectionState === 'failed') {
                     endVideoChat();
+                } else if (peerConnection.iceConnectionState === 'connected') {
+                    console.log('ICE connection established');
                 }
             };
-            peerConnection.onnegotiationneeded = async () => {
-                console.log('Negotiation needed');
-                const offer = await peerConnection.createOffer();
-                await peerConnection.setLocalDescription(offer);
-                ws.send(JSON.stringify({ type: 'offer', offer: offer, target: remotePlayerId, playerId: myPlayerId }));
-            };
+            // Removed onnegotiationneeded to prevent unwanted renegotiation
         }
 
         function cleanupConnection() {
             if (peerConnection) {
+                peerConnection.ontrack = null;
+                peerConnection.onicecandidate = null;
+                peerConnection.oniceconnectionstatechange = null;
                 peerConnection.close();
                 peerConnection = null;
-                console.log('Peer connection closed');
+                console.log('Peer connection fully reset');
             }
             iceCandidates = [];
             remoteVideo.srcObject = null;
