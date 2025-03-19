@@ -21,41 +21,49 @@
         #status { margin-top: 10px; font-size: 14px; color: #666; }
         .video-container {
             display: flex;
-            gap: 10px; /* Reduced gap for better fit on small screens */
-            padding: 10px;
+            gap: 15px; /* Adjusted gap for balance */
+            padding: 15px;
             background-color: #fff;
             border-radius: 10px;
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
             margin: 20px 0;
-            flex-wrap: wrap; /* Allows wrapping on very small screens */
+            flex-wrap: wrap; /* Allows wrapping on smaller screens */
             justify-content: center;
             width: 95%;
             max-width: 1400px;
         }
         video {
-            /* Base size for desktops */
-            width: 320px; /* Halved from 640px to fit two videos side-by-side */
-            height: 240px; /* Halved from 480px */
+            /* Default size for desktops - larger but proportional */
+            width: 100%; /* Full width of container divided by flex */
+            max-width: 640px; /* Max size for desktops */
+            height: auto; /* Maintains aspect ratio */
             background-color: #000;
             border-radius: 5px;
             object-fit: cover;
+            flex: 1 1 45%; /* Flex-grow, flex-shrink, flex-basis: 45% for two videos */
+            min-width: 300px; /* Ensures videos don’t get too tiny */
         }
-        @media (max-width: 768px) { /* Tablets */
+        @media (max-width: 1024px) { /* Large tablets and smaller laptops */
             video {
-                width: 45vw; /* 45% of viewport width for side-by-side */
-                height: auto; /* Maintain aspect ratio */
-                max-width: 320px; /* Cap to prevent overgrowth */
+                max-width: 480px; /* Slightly smaller for mid-range screens */
+                flex-basis: 45%; /* Still side-by-side */
             }
         }
-        @media (max-width: 480px) { /* Phones */
+        @media (max-width: 768px) { /* Tablets and large phones */
+            video {
+                max-width: 360px; /* Adjusted for tablets */
+                flex-basis: 48%; /* Slightly wider to fit two videos */
+            }
+        }
+        @media (max-width: 480px) { /* Small phones */
             .video-container {
-                flex-direction: column; /* Stack videos vertically on very small screens */
-                gap: 5px; /* Smaller gap */
+                flex-direction: column; /* Stack vertically on small screens */
+                gap: 10px;
             }
             video {
-                width: 90vw; /* Full width for single video */
-                height: auto;
-                max-width: 320px; /* Consistent max size */
+                max-width: 100%; /* Full width of container */
+                flex-basis: auto; /* Reset flex-basis */
+                min-width: 0; /* Allow full width */
             }
         }
         #chat-container { width: 90%; max-width: 1000px; margin-top: 20px; }
@@ -75,11 +83,10 @@
 <body>
     <h1>KonnectAi</h1>
     <div class="button-container">
-        <!-- Button text will toggle between Start and Stop -->
         <button id="videoToggleButton" onclick="toggleVideo()">Start Video</button>
         <button onclick="connectRandom()">Connect Random</button>
         <button onclick="reportPeer()" id="reportButton" disabled>Report User</button>
-        <button onclick="endVideoChat()">End Chat</button>
+        <!-- Removed End Chat button -->
     </div>
     <div id="status">Status: <span id="statusText">Disconnected</span></div>
     
@@ -108,14 +115,14 @@
 
     <script>
         // --- Global Variables ---
-        let localStream;          // Stores the user's webcam/microphone stream
-        let peerConnection;       // WebRTC peer connection object
-        let ws;                   // WebSocket connection to the signaling server
-        let myPeerId;             // Unique ID assigned to this client
-        let remotePeerId;         // ID of the connected peer
-        let isAdmin = false;      // Tracks if this user is an admin
-        let iceCandidates = [];   // Buffer for ICE candidates
-        let isVideoOn = false;    // Tracks if video is currently active
+        let localStream;
+        let peerConnection;
+        let ws;
+        let myPeerId;
+        let remotePeerId;
+        let isAdmin = false;
+        let iceCandidates = [];
+        let isVideoOn = false;
 
         // --- WebRTC Configuration ---
         const configuration = {
@@ -235,7 +242,6 @@
         }
 
         async function toggleVideo() {
-            // Toggles the video stream on or off
             if (!isVideoOn) {
                 await startVideoChat();
             } else {
@@ -244,14 +250,13 @@
         }
 
         async function startVideoChat() {
-            // Starts the video stream and updates UI
             try {
                 if (localStream) {
                     localStream.getTracks().forEach(track => track.stop());
                     localStream = null;
                 }
                 localStream = await navigator.mediaDevices.getUserMedia({ 
-                    video: { width: 320, height: 240 }, // Match CSS size
+                    video: true, // Let browser choose optimal resolution
                     audio: true 
                 });
                 localVideo.srcObject = localStream;
@@ -266,7 +271,6 @@
         }
 
         async function stopVideoChat() {
-            // Stops the video stream and removes from waiting pool
             if (localStream) {
                 localStream.getTracks().forEach(track => track.stop());
                 localStream = null;
@@ -274,16 +278,14 @@
                 statusText.textContent = 'Video stopped';
                 videoToggleButton.textContent = 'Start Video';
                 isVideoOn = false;
-                // Notify server to remove from pool
                 if (ws.readyState === WebSocket.OPEN) {
                     ws.send(JSON.stringify({ type: 'leave' }));
                 }
-                cleanupConnection(); // Ensure no lingering connection
+                cleanupConnection();
             }
         }
 
         function connectRandom() {
-            // Requests a random peer match, only if video is on
             if (!isVideoOn) {
                 statusText.textContent = 'Please start video first';
                 return;
@@ -460,28 +462,18 @@
         }
 
         function endVideoChat() {
-            if (remotePeerId) {
-                ws.send(JSON.stringify({
-                    type: 'end-chat',
-                    myPeerId: myPeerId,
-                    target: remotePeerId
-                }));
-            }
+            // Simplified to just clean up connection and reset UI
             cleanupConnection();
-            if (isVideoOn && localStream) {
-                localStream.getTracks().forEach(track => track.stop());
-                localStream = null;
-            }
-            localVideo.srcObject = null;
             remotePeerId = null;
             reportButton.disabled = true;
             chatInput.disabled = true;
             sendChatButton.disabled = true;
             chatMessages.innerHTML = '';
-            statusText.textContent = 'Waiting for match...';
             if (isVideoOn) {
-                startVideoChat().then(() => ws.send(JSON.stringify({ type: 'join' })));
+                statusText.textContent = 'Waiting for match...';
+                ws.send(JSON.stringify({ type: 'join' }));
             } else {
+                statusText.textContent = 'Video stopped';
                 videoToggleButton.textContent = 'Start Video';
             }
         }
