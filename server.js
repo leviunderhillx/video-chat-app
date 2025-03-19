@@ -88,8 +88,8 @@ wss.on('connection', (ws, req) => {
             return;
         }
 
-        // Define variables once at the top of the message handler scope
-        let myPeerId, reportedPeerId, targetPeerId;
+        // Declare all variables once at the top of the message handler scope
+        let myPeerId, reportedPeerId, targetPeerId, reportedWs, myWs, targetPeer, targetWs, adminPeer, reportedIP, reportCount;
 
         switch (data.type) {
             case 'admin-login':
@@ -116,12 +116,12 @@ wss.on('connection', (ws, req) => {
                 // Handle peer report
                 reportedPeerId = data.reportedPeerId;
                 myPeerId = data.myPeerId;
-                const reportedWs = peers.get(reportedPeerId);
-                const myWs = peers.get(myPeerId);
+                reportedWs = peers.get(reportedPeerId);
+                myWs = peers.get(myPeerId);
 
                 if (reportedWs) {
-                    const reportedIP = reportedWs.ip;
-                    const reportCount = (reports.get(reportedIP) || 0) + 1;
+                    reportedIP = reportedWs.ip;
+                    reportCount = (reports.get(reportedIP) || 0) + 1;
                     reports.set(reportedIP, reportCount);
 
                     if (reportCount >= 10) {
@@ -148,11 +148,11 @@ wss.on('connection', (ws, req) => {
                 broadcastAdminUpdate();
                 break;
             case 'end-chat':
-                // End chat and requeue both peers (reuse variables)
+                // End chat and requeue both peers
                 myPeerId = data.myPeerId;
                 targetPeerId = data.target;
-                const targetWs = peers.get(targetPeerId);
-                const myWs = peers.get(myPeerId);
+                targetWs = peers.get(targetPeerId);
+                myWs = peers.get(myPeerId);
 
                 if (targetWs && targetWs.readyState === WebSocket.OPEN) {
                     targetWs.send(JSON.stringify({ type: 'requeue' }));
@@ -170,7 +170,7 @@ wss.on('connection', (ws, req) => {
             case 'answer':
             case 'candidate':
                 // Relay signaling or chat messages
-                const targetPeer = peers.get(data.target);
+                targetPeer = peers.get(data.target);
                 if (targetPeer && targetPeer.readyState === WebSocket.OPEN) {
                     targetPeer.send(JSON.stringify(data));
                 }
@@ -178,7 +178,7 @@ wss.on('connection', (ws, req) => {
             case 'admin-ban':
                 // Admin bans a peer
                 if (ws.isAdmin) {
-                    const targetWs = peers.get(data.peerId);
+                    targetWs = peers.get(data.peerId);
                     if (targetWs) {
                         bannedIPs.add(targetWs.ip);
                         targetWs.send(JSON.stringify({ type: 'banned', reason: 'Admin ban' }));
@@ -192,7 +192,7 @@ wss.on('connection', (ws, req) => {
             case 'admin-screenshot-request':
                 // Admin requests a screenshot
                 if (ws.isAdmin) {
-                    const targetPeer = peers.get(data.peerId);
+                    targetPeer = peers.get(data.peerId);
                     if (targetPeer) {
                         targetPeer.send(JSON.stringify({ type: 'screenshot-request', requester: peerId }));
                     }
@@ -200,7 +200,7 @@ wss.on('connection', (ws, req) => {
                 break;
             case 'screenshot-response':
                 // Relay screenshot to admin
-                const adminPeer = peers.get(data.requester);
+                adminPeer = peers.get(data.requester);
                 if (adminPeer && adminPeer.isAdmin) {
                     adminPeer.send(JSON.stringify({
                         type: 'screenshot-response',
