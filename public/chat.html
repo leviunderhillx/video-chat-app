@@ -5,53 +5,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>KonnectAi</title>
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            margin: 0;
-            padding: 20px;
-            background-color: #f0f0f0;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-        }
+        body { font-family: Arial, sans-serif; margin: 0; padding: 20px; background-color: #f0f0f0; display: flex; flex-direction: column; align-items: center; }
         h1 { color: #333; margin-bottom: 20px; }
         .button-container { display: flex; justify-content: center; gap: 15px; margin-bottom: 20px; }
         button { padding: 10px 20px; background-color: #4CAF50; color: white; border: none; border-radius: 5px; cursor: pointer; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); transition: transform 0.2s, box-shadow 0.2s; }
         button:hover { background-color: #45a049; transform: translateY(-2px); box-shadow: 0 6px 8px rgba(0, 0, 0, 0.2); }
         #status { margin-top: 10px; font-size: 14px; color: #666; }
-        .video-container {
-            display: flex;
-            gap: 15px;
-            padding: 15px;
-            background-color: #fff;
-            border-radius: 10px;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-            margin: 20px 0;
-            flex-wrap: wrap;
-            justify-content: center;
-            width: 95%;
-            max-width: 1400px;
-        }
-        video {
-            width: 100%;
-            max-width: 640px;
-            height: auto;
-            background-color: #000;
-            border-radius: 5px;
-            object-fit: cover;
-            flex: 1 1 45%;
-            min-width: 300px;
-        }
-        @media (max-width: 1024px) {
-            video { max-width: 480px; flex-basis: 45%; }
-        }
-        @media (max-width: 768px) {
-            video { max-width: 360px; flex-basis: 48%; }
-        }
-        @media (max-width: 480px) {
-            .video-container { flex-direction: column; gap: 10px; }
-            video { max-width: 100%; flex-basis: auto; min-width: 0; }
-        }
+        .video-container { display: flex; gap: 15px; padding: 15px; background-color: #fff; border-radius: 10px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1); margin: 20px 0; flex-wrap: wrap; justify-content: center; width: 95%; max-width: 1400px; }
+        video { width: 100%; max-width: 640px; height: auto; background-color: #000; border-radius: 5px; object-fit: cover; flex: 1 1 45%; min-width: 300px; }
+        @media (max-width: 1024px) { video { max-width: 480px; flex-basis: 45%; } }
+        @media (max-width: 768px) { video { max-width: 360px; flex-basis: 48%; } }
+        @media (max-width: 480px) { .video-container { flex-direction: column; gap: 10px; } video { max-width: 100%; flex-basis: auto; min-width: 0; } }
         #chat-container { width: 90%; max-width: 1000px; margin-top: 20px; }
         #chat-messages { height: 150px; overflow-y: auto; border: 1px solid #ccc; padding: 10px; background-color: white; border-radius: 5px; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05); }
         #chat-input { width: 70%; padding: 5px; margin-top: 10px; border-radius: 5px; border: 1px solid #ccc; }
@@ -99,7 +63,6 @@
     <canvas id="screenshot-canvas" style="display:none;"></canvas>
 
     <script>
-        // --- Global Variables ---
         let localStream;
         let peerConnection;
         let ws;
@@ -110,7 +73,6 @@
         let isVideoOn = false;
         let countdownInterval;
 
-        // --- WebRTC Configuration ---
         const configuration = {
             iceServers: [
                 { urls: 'stun:stun.l.google.com:19302' },
@@ -122,7 +84,6 @@
             iceCandidatePoolSize: 10
         };
 
-        // --- DOM Elements ---
         const videoToggleButton = document.getElementById('videoToggleButton');
         const localVideo = document.getElementById('localVideo');
         const remoteVideo = document.getElementById('remoteVideo');
@@ -136,7 +97,6 @@
         const canvas = document.getElementById('screenshot-canvas');
         const ctx = canvas.getContext('2d');
 
-        // --- WebSocket Setup ---
         const SIGNALING_SERVER_URL = 'wss://video-chat-server-t6df.onrender.com';
         connectWebSocket();
 
@@ -160,6 +120,7 @@
                         break;
                     case 'matched':
                         remotePlayerId = data.playerId;
+                        console.log('Matched with:', remotePlayerId);
                         statusText.textContent = `Matched with ${remotePlayerId}`;
                         reportButton.disabled = false;
                         chatInput.disabled = false;
@@ -170,12 +131,15 @@
                         addChatMessage(data.message, data.sender === myPlayerId ? 'You' : remotePlayerId);
                         break;
                     case 'offer':
+                        console.log('Handling offer from:', data.playerId);
                         await handleOffer(data);
                         break;
                     case 'answer':
+                        console.log('Handling answer from:', data.playerId);
                         await handleAnswer(data);
                         break;
                     case 'candidate':
+                        console.log('Handling candidate from:', data.playerId);
                         if (peerConnection && peerConnection.remoteDescription) {
                             await handleCandidate(data);
                         } else {
@@ -246,11 +210,9 @@
                     localStream.getTracks().forEach(track => track.stop());
                     localStream = null;
                 }
-                localStream = await navigator.mediaDevices.getUserMedia({ 
-                    video: true,
-                    audio: true 
-                });
+                localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
                 localVideo.srcObject = localStream;
+                console.log('Local stream started');
                 statusText.textContent = 'Video started';
                 videoToggleButton.textContent = 'Stop Video';
                 isVideoOn = true;
@@ -273,11 +235,7 @@
                 videoToggleButton.textContent = 'Start Video';
                 isVideoOn = false;
                 if (ws.readyState === WebSocket.OPEN && remotePlayerId) {
-                    ws.send(JSON.stringify({ 
-                        type: 'stop-video', 
-                        myPlayerId: myPlayerId, 
-                        target: remotePlayerId 
-                    }));
+                    ws.send(JSON.stringify({ type: 'stop-video', myPlayerId: myPlayerId, target: remotePlayerId }));
                 }
                 cleanupConnection();
                 remotePlayerId = null;
@@ -299,18 +257,14 @@
                 return;
             }
             if (remotePlayerId) {
-                ws.send(JSON.stringify({ 
-                    type: 'skip-chat', 
-                    myPlayerId: myPlayerId, 
-                    target: remotePlayerId 
-                }));
+                ws.send(JSON.stringify({ type: 'skip-chat', myPlayerId: myPlayerId, target: remotePlayerId }));
                 cleanupConnection();
                 remotePlayerId = null;
                 reportButton.disabled = true;
                 chatInput.disabled = true;
                 sendChatButton.disabled = true;
                 chatMessages.innerHTML = '';
-                startCountdown(5); // Start 5-second countdown
+                startCountdown(5);
             } else {
                 ws.send(JSON.stringify({ type: 'join' }));
                 statusText.textContent = 'Waiting for match...';
@@ -320,7 +274,7 @@
         function startCountdown(seconds) {
             let timeLeft = seconds;
             statusText.textContent = `Attempting to connect to new player in ${timeLeft}`;
-            clearInterval(countdownInterval); // Clear any existing countdown
+            clearInterval(countdownInterval);
             countdownInterval = setInterval(() => {
                 timeLeft--;
                 if (timeLeft > 0) {
@@ -337,11 +291,7 @@
 
         function reportPeer() {
             if (remotePlayerId) {
-                ws.send(JSON.stringify({ 
-                    type: 'report', 
-                    reportedPlayerId: remotePlayerId,
-                    myPlayerId: myPlayerId
-                }));
+                ws.send(JSON.stringify({ type: 'report', reportedPlayerId: remotePlayerId, myPlayerId: myPlayerId }));
                 statusText.textContent = 'User reported';
             }
         }
@@ -349,11 +299,7 @@
         function sendChatMessage() {
             const message = chatInput.value.trim();
             if (message && remotePlayerId) {
-                ws.send(JSON.stringify({
-                    type: 'chat',
-                    message: message,
-                    target: remotePlayerId
-                }));
+                ws.send(JSON.stringify({ type: 'chat', message: message, target: remotePlayerId }));
                 addChatMessage(message, 'You');
                 chatInput.value = '';
             }
@@ -398,11 +344,7 @@
             canvas.height = localVideo.videoHeight;
             ctx.drawImage(localVideo, 0, 0);
             const screenshot = canvas.toDataURL('image/jpeg', 0.5).split(',')[1];
-            ws.send(JSON.stringify({
-                type: 'screenshot-response',
-                requester: requester,
-                screenshot: screenshot
-            }));
+            ws.send(JSON.stringify({ type: 'screenshot-response', requester: requester, screenshot: screenshot }));
         }
 
         function displayScreenshot(playerId, screenshot) {
@@ -428,12 +370,7 @@
             const offer = await peerConnection.createOffer();
             await peerConnection.setLocalDescription(offer);
             console.log('Sending offer to:', remotePlayerId);
-            ws.send(JSON.stringify({
-                type: 'offer',
-                offer: offer,
-                target: remotePlayerId,
-                playerId: myPlayerId
-            }));
+            ws.send(JSON.stringify({ type: 'offer', offer: offer, target: remotePlayerId, playerId: myPlayerId }));
         }
 
         async function handleOffer(data) {
@@ -448,12 +385,7 @@
             const answer = await peerConnection.createAnswer();
             await peerConnection.setLocalDescription(answer);
             console.log('Sending answer to:', data.playerId);
-            ws.send(JSON.stringify({
-                type: 'answer',
-                answer: answer,
-                target: data.playerId,
-                playerId: myPlayerId
-            }));
+            ws.send(JSON.stringify({ type: 'answer', answer: answer, target: data.playerId, playerId: myPlayerId }));
             iceCandidates.forEach(async candidate => await handleCandidate(candidate));
             iceCandidates = [];
         }
@@ -461,15 +393,22 @@
         async function handleAnswer(data) {
             if (peerConnection) {
                 await peerConnection.setRemoteDescription(new RTCSessionDescription(data.answer));
+                console.log('Set remote description from answer');
                 iceCandidates.forEach(async candidate => await handleCandidate(candidate));
                 iceCandidates = [];
+            } else {
+                console.error('No peerConnection to handle answer');
             }
         }
 
         async function handleCandidate(data) {
             try {
-                await peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
-                console.log('Added ICE candidate');
+                if (peerConnection) {
+                    await peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
+                    console.log('Added ICE candidate');
+                } else {
+                    console.error('No peerConnection to add ICE candidate');
+                }
             } catch (error) {
                 console.error('ICE candidate error:', error);
             }
@@ -484,11 +423,7 @@
             peerConnection.onicecandidate = event => {
                 if (event.candidate) {
                     console.log('Sending ICE candidate to:', remotePlayerId);
-                    ws.send(JSON.stringify({
-                        type: 'candidate',
-                        candidate: event.candidate,
-                        target: remotePlayerId
-                    }));
+                    ws.send(JSON.stringify({ type: 'candidate', candidate: event.candidate, target: remotePlayerId }));
                 }
             };
             peerConnection.oniceconnectionstatechange = () => {
@@ -497,12 +432,19 @@
                     endVideoChat();
                 }
             };
+            peerConnection.onnegotiationneeded = async () => {
+                console.log('Negotiation needed');
+                const offer = await peerConnection.createOffer();
+                await peerConnection.setLocalDescription(offer);
+                ws.send(JSON.stringify({ type: 'offer', offer: offer, target: remotePlayerId, playerId: myPlayerId }));
+            };
         }
 
         function cleanupConnection() {
             if (peerConnection) {
                 peerConnection.close();
                 peerConnection = null;
+                console.log('Peer connection closed');
             }
             iceCandidates = [];
             remoteVideo.srcObject = null;

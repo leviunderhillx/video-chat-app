@@ -10,38 +10,22 @@ let reports = new Map();        // Tracks reports per IP
 let bannedIPs = new Set();      // Banned IPs
 let availablePlayerIds = ['Player 1', 'Player 2', 'Player 3', 'Player 4', 'Player 5'];
 let usedPlayerIds = new Set();  // Tracks currently used IDs
-let ipToPlayerId = new Map();   // Maps IP to playerId to prevent duplicates
 
-function assignPlayerId(ip) {
-    // Check if this IP already has a player ID
-    if (ipToPlayerId.has(ip)) {
-        const existingId = ipToPlayerId.get(ip);
-        console.log(`IP ${ip} already assigned to ${existingId}, reusing it`);
-        return existingId;
-    }
-
-    // Assign a new ID
+function assignPlayerId() {
     for (let id of availablePlayerIds) {
         if (!usedPlayerIds.has(id)) {
             usedPlayerIds.add(id);
-            ipToPlayerId.set(ip, id);
-            console.log(`Assigned ${id} to IP ${ip}`);
+            console.log(`Assigned ${id}`);
             return id;
         }
     }
-    console.log(`No available player IDs for IP ${ip}`);
+    console.log(`No available player IDs`);
     return null;
 }
 
 function releasePlayerId(playerId) {
     if (usedPlayerIds.has(playerId)) {
         usedPlayerIds.delete(playerId);
-        for (let [ip, id] of ipToPlayerId) {
-            if (id === playerId) {
-                ipToPlayerId.delete(ip);
-                break;
-            }
-        }
         console.log(`Released ${playerId}`);
     }
 }
@@ -115,7 +99,7 @@ wss.on('connection', (ws, req) => {
         return;
     }
 
-    const playerId = assignPlayerId(ip);
+    const playerId = assignPlayerId();
     if (!playerId) {
         ws.send(JSON.stringify({ type: 'error', message: 'No available player slots' }));
         ws.close();
@@ -186,7 +170,7 @@ wss.on('connection', (ws, req) => {
                     waitingPool.add(targetPlayerId);
                     console.log(`Requeued ${targetPlayerId} due to ${myPlayerId} skipping chat`);
                 }
-                setTimeout(connectRandomPeers, 5000); // Match 5-second countdown
+                setTimeout(connectRandomPeers, 5000);
                 broadcastAdminUpdate();
                 break;
             case 'report':
