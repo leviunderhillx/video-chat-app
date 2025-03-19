@@ -4,29 +4,45 @@ const port = process.env.PORT || 10000;
 const wss = new WebSocket.Server({ port });
 
 // --- Data Structures ---
-let peers = new Map();
-let waitingPool = new Set();
-let reports = new Map();
-let bannedIPs = new Set();
+let peers = new Map();          // Maps playerId (e.g., "Player 1") to WebSocket
+let waitingPool = new Set();    // Set of playerIds waiting to be matched
+let reports = new Map();        // Tracks reports per IP
+let bannedIPs = new Set();      // Banned IPs
+let availablePlayerIds = ['Player 1', 'Player 2', 'Player 3', 'Player 4', 'Player 5']; // Pool of reusable IDs
+let usedPlayerIds = new Set();  // Tracks currently used IDs
+
+function assignPlayerId() {
+    for (let id of availablePlayerIds) {
+        if (!usedPlayerIds.has(id)) {
+            usedPlayerIds.add(id);
+            return id;
+        }
+    }
+    return null; // No available IDs
+}
+
+function releasePlayerId(playerId) {
+    usedPlayerIds.delete(playerId);
+}
 
 function connectRandomPeers() {
     const waitingArray = Array.from(waitingPool);
     if (waitingArray.length < 2) return;
 
-    const peer1Id = waitingArray[0];
-    const peer2Id = waitingArray[1];
-    const peer1 = peers.get(peer1Id);
-    const peer2 = peers.get(peer2Id);
+    const player1Id = waitingArray[0];
+    const player2Id = waitingArray[1];
+    const player1 = peers.get(player1Id);
+    const player2 = peers.get(player2Id);
 
-    if (peer1 && peer2 && peer1.readyState === WebSocket.OPEN && peer2.readyState === WebSocket.OPEN) {
-        console.log(`Matching ${peer1Id} with ${peer2Id}`);
-        peer1.send(JSON.stringify({ type: 'matched', peerId: peer2Id }));
-        peer2.send(JSON.stringify({ type: 'matched', peerId: peer1Id }));
-        waitingPool.delete(peer1Id);
-        waitingPool.delete(peer2Id);
+    if (player1 && player2 && player1.readyState === WebSocket.OPEN && player2.readyState === WebSocket.OPEN) {
+        console.log(`Matching ${player1Id} with ${player2Id}`);
+        player1.send(JSON.stringify({ type: 'matched', playerId: player2Id }));
+        player2.send(JSON.stringify({ type: 'matched', playerId: player1Id }));
+        waitingPool.delete(player1Id);
+        waitingPool.delete(player2Id);
     } else {
-        if (!peer1 || peer1.readyState !== WebSocket.OPEN) waitingPool.delete(peer1Id);
-        if (!peer2 || peer2.readyState !== WebSocket.OPEN) waitingPool.delete(peer2Id);
+        if (!player1 || player1.readyState !== WebSocket.OPEN) waitingPool.delete(player1Id);
+        if (!player2 || player2.readyState !== WebSocket.OPEN) waitingPool.delete(player2Id);
         setTimeout(connectRandomPeers, 1000);
     }
 }
@@ -35,7 +51,7 @@ function broadcastAdminUpdate() {
     peers.forEach(ws => {
         if (ws.isAdmin) {
             const connectedPeers = Array.from(peers.entries()).map(([id, peer]) => ({
-                peerId: id,
+                playerId: id,
                 ip: peer.ip
             }));
             ws.send(JSON.stringify({ type: 'admin-update', peers: connectedPeers }));
@@ -44,13 +60,14 @@ function broadcastAdminUpdate() {
 }
 
 function pingPeers() {
-    peers.forEach((ws, peerId) => {
+    peers.forEach((ws, playerId) => {
         if (ws.readyState === WebSocket.OPEN) {
             ws.ping();
         } else {
-            peers.delete(peerId);
-            waitingPool.delete(peerId);
-            console.log(`Removed dead peer: ${peerId}`);
+            peers.delete(playerId);
+            waitingPool.delete(playerId);
+            releasePlayerId(playerId);
+            console.log(`Removed dead peer: ${playerId}`);
         }
     });
 }
@@ -66,79 +83,85 @@ wss.on('connection', (ws, req) => {
         return;
     }
 
-    const peerId = Math.random().toString(36).substring(2);
-    peers.set(peerId, ws);
+    const playerId = assignPlayerId();
+    if (!playerId) {
+        ws.send(JSON.stringify({ type: 'error', message: 'No available player slots' }));
+        ws.close();
+        return;
+    }
+
+    peers.set(playerId, ws);
     ws.ip = ip;
     ws.isAdmin = false;
-    ws.send(JSON.stringify({ type: 'connected', peerId }));
+    ws.send(JSON.stringify({ type: 'connected', playerId }));
 
     ws.on('message', (message) => {
         let data;
         try {
             data = JSON.parse(message);
-            console.log(`Received from ${peerId}:`, data);
+            console.log(`Received from ${playerId}:`, data);
         } catch (error) {
             console.error('Invalid message:', error);
             return;
         }
 
-        let myPeerId, reportedPeerId, targetPeerId, reportedWs, myWs, targetPeer, targetWs, adminPeer, reportedIP, reportCount;
+        let myPlayerId, reportedPlayerId, targetPlayerId, reportedWs, myWs, targetPeer, targetWs, adminPeer, reportedIP, reportCount;
 
         switch (data.type) {
             case 'admin-login':
                 if (data.password === (process.env.ADMIN_PASSWORD || 'secret123')) {
                     ws.isAdmin = true;
-                    console.log(`${peerId} is now admin`);
+                    console.log(`${playerId} is now admin`);
                     broadcastAdminUpdate();
                 }
                 break;
             case 'join':
-                waitingPool.add(peerId);
+                waitingPool.add(playerId);
                 connectRandomPeers();
                 broadcastAdminUpdate();
                 break;
             case 'leave':
-                waitingPool.delete(peerId);
-                console.log(`${peerId} left the waiting pool`);
+                waitingPool.delete(playerId);
+                console.log(`${playerId} left the waiting pool`);
                 broadcastAdminUpdate();
                 break;
             case 'stop-video':
-                myPeerId = data.myPeerId;
-                targetPeerId = data.target;
-                targetWs = peers.get(targetPeerId);
+                myPlayerId = data.myPlayerId;
+                targetPlayerId = data.target;
+                targetWs = peers.get(targetPlayerId);
 
                 if (targetWs && targetWs.readyState === WebSocket.OPEN) {
                     targetWs.send(JSON.stringify({ type: 'requeue' }));
-                    waitingPool.add(targetPeerId);
-                    console.log(`Requeued ${targetPeerId} due to ${myPeerId} stopping video`);
+                    waitingPool.add(targetPlayerId);
+                    console.log(`Requeued ${targetPlayerId} due to ${myPlayerId} stopping video`);
                 }
-                waitingPool.delete(myPeerId);
+                waitingPool.delete(myPlayerId);
                 broadcastAdminUpdate();
                 break;
             case 'skip-chat':
-                myPeerId = data.myPeerId;
-                targetPeerId = data.target;
-                myWs = peers.get(myPeerId);
-                targetWs = peers.get(targetPeerId);
+                myPlayerId = data.myPlayerId;
+                targetPlayerId = data.target;
+                myWs = peers.get(myPlayerId);
+                targetWs = peers.get(targetPlayerId);
 
                 if (myWs && myWs.readyState === WebSocket.OPEN) {
                     myWs.send(JSON.stringify({ type: 'requeue' }));
-                    waitingPool.add(myPeerId);
-                    console.log(`Requeued ${myPeerId} due to skipping chat`);
+                    waitingPool.add(myPlayerId);
+                    console.log(`Requeued ${myPlayerId} due to skipping chat`);
                 }
                 if (targetWs && targetWs.readyState === WebSocket.OPEN) {
                     targetWs.send(JSON.stringify({ type: 'requeue' }));
-                    waitingPool.add(targetPeerId);
-                    console.log(`Requeued ${targetPeerId} due to ${myPeerId} skipping chat`);
+                    waitingPool.add(targetPlayerId);
+                    console.log(`Requeued ${targetPlayerId} due to ${myPlayerId} skipping chat`);
                 }
                 setTimeout(connectRandomPeers, 3000);
                 broadcastAdminUpdate();
                 break;
             case 'report':
-                reportedPeerId = data.reportedPeerId;
-                myPeerId = data.myPeerId;
-                reportedWs = peers.get(reportedPeerId);
-                myWs = peers.get(myPeerId);
+                reportedPlayerId = data.reportedPlayerId;
+                myPlayerId = data.myPlayerId;
+                reportedWs = peers.get(reportedPlayerId);
+                myWs = peers.get(myPlayerId);
 
                 if (reportedWs) {
                     reportedIP = reportedWs.ip;
@@ -149,38 +172,39 @@ wss.on('connection', (ws, req) => {
                         bannedIPs.add(reportedIP);
                         reportedWs.send(JSON.stringify({ type: 'banned', reason: '10 reports' }));
                         reportedWs.close();
-                        peers.delete(reportedPeerId);
-                        waitingPool.delete(reportedPeerId);
+                        peers.delete(reportedPlayerId);
+                        waitingPool.delete(reportedPlayerId);
+                        releasePlayerId(reportedPlayerId);
                     } else {
                         if (reportedWs.readyState === WebSocket.OPEN) {
                             reportedWs.send(JSON.stringify({ type: 'requeue' }));
-                            waitingPool.add(reportedPeerId);
+                            waitingPool.add(reportedPlayerId);
                         }
                         if (myWs && myWs.readyState === WebSocket.OPEN) {
                             myWs.send(JSON.stringify({ type: 'requeue' }));
-                            waitingPool.add(myPeerId);
+                            waitingPool.add(myPlayerId);
                         }
                     }
                 } else if (myWs && myWs.readyState === WebSocket.OPEN) {
                     myWs.send(JSON.stringify({ type: 'requeue' }));
-                    waitingPool.add(myPeerId);
+                    waitingPool.add(myPlayerId);
                 }
                 connectRandomPeers();
                 broadcastAdminUpdate();
                 break;
             case 'end-chat':
-                myPeerId = data.myPeerId;
-                targetPeerId = data.target;
-                targetWs = peers.get(targetPeerId);
-                myWs = peers.get(myPeerId);
+                myPlayerId = data.myPlayerId;
+                targetPlayerId = data.target;
+                targetWs = peers.get(targetPlayerId);
+                myWs = peers.get(myPlayerId);
 
                 if (targetWs && targetWs.readyState === WebSocket.OPEN) {
                     targetWs.send(JSON.stringify({ type: 'requeue' }));
-                    waitingPool.add(targetPeerId);
+                    waitingPool.add(targetPlayerId);
                 }
                 if (myWs && myWs.readyState === WebSocket.OPEN) {
                     myWs.send(JSON.stringify({ type: 'requeue' }));
-                    waitingPool.add(myPeerId);
+                    waitingPool.add(myPlayerId);
                 }
                 connectRandomPeers();
                 broadcastAdminUpdate();
@@ -196,22 +220,23 @@ wss.on('connection', (ws, req) => {
                 break;
             case 'admin-ban':
                 if (ws.isAdmin) {
-                    targetWs = peers.get(data.peerId);
+                    targetWs = peers.get(data.playerId);
                     if (targetWs) {
                         bannedIPs.add(targetWs.ip);
                         targetWs.send(JSON.stringify({ type: 'banned', reason: 'Admin ban' }));
                         targetWs.close();
-                        peers.delete(data.peerId);
-                        waitingPool.delete(data.peerId);
+                        peers.delete(data.playerId);
+                        waitingPool.delete(data.playerId);
+                        releasePlayerId(data.playerId);
                         broadcastAdminUpdate();
                     }
                 }
                 break;
             case 'admin-screenshot-request':
                 if (ws.isAdmin) {
-                    targetPeer = peers.get(data.peerId);
+                    targetPeer = peers.get(data.playerId);
                     if (targetPeer) {
-                        targetPeer.send(JSON.stringify({ type: 'screenshot-request', requester: peerId }));
+                        targetPeer.send(JSON.stringify({ type: 'screenshot-request', requester: playerId }));
                     }
                 }
                 break;
@@ -220,7 +245,7 @@ wss.on('connection', (ws, req) => {
                 if (adminPeer && adminPeer.isAdmin) {
                     adminPeer.send(JSON.stringify({
                         type: 'screenshot-response',
-                        peerId: peerId,
+                        playerId: playerId,
                         screenshot: data.screenshot
                     }));
                 }
@@ -229,11 +254,13 @@ wss.on('connection', (ws, req) => {
     });
 
     ws.on('close', () => {
-        peers.delete(peerId);
-        waitingPool.delete(peerId);
+        peers.delete(playerId);
+        waitingPool.delete(playerId);
+        releasePlayerId(playerId);
         peers.forEach(peer => {
-            peer.send(JSON.stringify({ type: 'peer-disconnected', peerId }));
+            peer.send(JSON.stringify({ type: 'peer-disconnected', playerId }));
         });
+        console.log(`Player ${playerId} disconnected`);
         broadcastAdminUpdate();
         connectRandomPeers();
     });
@@ -243,7 +270,7 @@ wss.on('connection', (ws, req) => {
     });
 
     ws.on('error', (error) => {
-        console.error(`WebSocket error for ${peerId}:`, error);
+        console.error(`WebSocket error for ${playerId}:`, error);
     });
 });
 

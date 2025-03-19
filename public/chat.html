@@ -103,8 +103,8 @@
         let localStream;
         let peerConnection;
         let ws;
-        let myPeerId;
-        let remotePeerId;
+        let myPlayerId; // Now using "Player X" instead of random ID
+        let remotePlayerId;
         let isAdmin = false;
         let iceCandidates = [];
         let isVideoOn = false;
@@ -153,19 +153,20 @@
 
                 switch (data.type) {
                     case 'connected':
-                        myPeerId = data.peerId;
-                        console.log('My peer ID:', myPeerId);
+                        myPlayerId = data.playerId; // Now "Player X"
+                        console.log('My player ID:', myPlayerId);
+                        statusText.textContent = `Connected as ${myPlayerId}`;
                         break;
                     case 'matched':
-                        remotePeerId = data.peerId;
-                        statusText.textContent = 'Matched with peer';
+                        remotePlayerId = data.playerId;
+                        statusText.textContent = `Matched with ${remotePlayerId}`;
                         reportButton.disabled = false;
                         chatInput.disabled = false;
                         sendChatButton.disabled = false;
                         await initiateCall();
                         break;
                     case 'chat':
-                        addChatMessage(data.message, data.sender === myPeerId ? 'You' : 'Them');
+                        addChatMessage(data.message, data.sender === myPlayerId ? 'You' : remotePlayerId);
                         break;
                     case 'offer':
                         await handleOffer(data);
@@ -181,9 +182,9 @@
                         }
                         break;
                     case 'peer-disconnected':
-                        if (data.peerId === remotePeerId) {
+                        if (data.playerId === remotePlayerId) {
                             endVideoChat();
-                            statusText.textContent = 'Peer disconnected';
+                            statusText.textContent = `${remotePlayerId} disconnected`;
                         }
                         break;
                     case 'banned':
@@ -199,13 +200,13 @@
                         break;
                     case 'screenshot-response':
                         if (isAdmin) {
-                            displayScreenshot(data.peerId, data.screenshot);
-                            saveScreenshotLocally(data.peerId, data.screenshot);
+                            displayScreenshot(data.playerId, data.screenshot);
+                            saveScreenshotLocally(data.playerId, data.screenshot);
                         }
                         break;
                     case 'requeue':
                         cleanupConnection();
-                        remotePeerId = null;
+                        remotePlayerId = null;
                         reportButton.disabled = true;
                         chatInput.disabled = true;
                         sendChatButton.disabled = true;
@@ -252,6 +253,9 @@
                 statusText.textContent = 'Video started';
                 videoToggleButton.textContent = 'Stop Video';
                 isVideoOn = true;
+                if (ws.readyState === WebSocket.OPEN) {
+                    ws.send(JSON.stringify({ type: 'join' }));
+                }
             } catch (error) {
                 console.error('Media error:', error);
                 statusText.textContent = 'Error starting video';
@@ -267,15 +271,15 @@
                 statusText.textContent = 'Video stopped';
                 videoToggleButton.textContent = 'Start Video';
                 isVideoOn = false;
-                if (ws.readyState === WebSocket.OPEN && remotePeerId) {
+                if (ws.readyState === WebSocket.OPEN && remotePlayerId) {
                     ws.send(JSON.stringify({ 
                         type: 'stop-video', 
-                        myPeerId: myPeerId, 
-                        target: remotePeerId 
+                        myPlayerId: myPlayerId, 
+                        target: remotePlayerId 
                     }));
                 }
                 cleanupConnection();
-                remotePeerId = null;
+                remotePlayerId = null;
                 reportButton.disabled = true;
                 chatInput.disabled = true;
                 sendChatButton.disabled = true;
@@ -293,39 +297,36 @@
                 connectWebSocket();
                 return;
             }
-            if (remotePeerId) {
-                // If already connected, skip current chat and requeue both peers
+            if (remotePlayerId) {
                 ws.send(JSON.stringify({ 
                     type: 'skip-chat', 
-                    myPeerId: myPeerId, 
-                    target: remotePeerId 
+                    myPlayerId: myPlayerId, 
+                    target: remotePlayerId 
                 }));
                 cleanupConnection();
-                remotePeerId = null;
+                remotePlayerId = null;
                 reportButton.disabled = true;
                 chatInput.disabled = true;
                 sendChatButton.disabled = true;
                 chatMessages.innerHTML = '';
                 statusText.textContent = 'Waiting for match...';
-                // Add 3-second delay before rejoining the pool
                 setTimeout(() => {
                     if (isVideoOn && ws.readyState === WebSocket.OPEN) {
                         ws.send(JSON.stringify({ type: 'join' }));
                     }
                 }, 3000);
             } else {
-                // If not connected, join the pool immediately
                 ws.send(JSON.stringify({ type: 'join' }));
                 statusText.textContent = 'Waiting for match...';
             }
         }
 
         function reportPeer() {
-            if (remotePeerId) {
+            if (remotePlayerId) {
                 ws.send(JSON.stringify({ 
                     type: 'report', 
-                    reportedPeerId: remotePeerId,
-                    myPeerId: myPeerId
+                    reportedPlayerId: remotePlayerId,
+                    myPlayerId: myPlayerId
                 }));
                 statusText.textContent = 'User reported';
             }
@@ -333,11 +334,11 @@
 
         function sendChatMessage() {
             const message = chatInput.value.trim();
-            if (message && remotePeerId) {
+            if (message && remotePlayerId) {
                 ws.send(JSON.stringify({
                     type: 'chat',
                     message: message,
-                    target: remotePeerId
+                    target: remotePlayerId
                 }));
                 addChatMessage(message, 'You');
                 chatInput.value = '';
@@ -366,12 +367,12 @@
             peers.forEach(peer => {
                 const peerContainer = document.createElement('div');
                 peerContainer.className = 'admin-peer';
-                peerContainer.id = `peer-${peer.peerId}`;
+                peerContainer.id = `peer-${peer.playerId}`;
                 peerContainer.innerHTML = `
                     <img class="admin-screenshot" alt="No screenshot yet">
-                    <button class="admin-screenshot-btn" onclick="ws.send(JSON.stringify({ type: 'admin-screenshot-request', peerId: '${peer.peerId}' }))">Request Screenshot</button>
-                    <button class="admin-ban-btn" onclick="ws.send(JSON.stringify({ type: 'admin-ban', peerId: '${peer.peerId}' }))">Ban</button>
-                    <div>Peer: ${peer.peerId} | IP: ${peer.ip}</div>
+                    <button class="admin-screenshot-btn" onclick="ws.send(JSON.stringify({ type: 'admin-screenshot-request', playerId: '${peer.playerId}' }))">Request Screenshot</button>
+                    <button class="admin-ban-btn" onclick="ws.send(JSON.stringify({ type: 'admin-ban', playerId: '${peer.playerId}' }))">Ban</button>
+                    <div>Player: ${peer.playerId} | IP: ${peer.ip}</div>
                 `;
                 adminPeers.appendChild(peerContainer);
             });
@@ -390,37 +391,43 @@
             }));
         }
 
-        function displayScreenshot(peerId, screenshot) {
-            const img = document.querySelector(`#peer-${peerId} .admin-screenshot`);
+        function displayScreenshot(playerId, screenshot) {
+            const img = document.querySelector(`#peer-${playerId} .admin-screenshot`);
             if (img) img.src = `data:image/jpeg;base64,${screenshot}`;
         }
 
-        function saveScreenshotLocally(peerId, screenshot) {
+        function saveScreenshotLocally(playerId, screenshot) {
             const link = document.createElement('a');
             link.href = `data:image/jpeg;base64,${screenshot}`;
-            link.download = `screenshot_${peerId}_${Date.now()}.jpg`;
+            link.download = `screenshot_${playerId}_${Date.now()}.jpg`;
             link.click();
         }
 
         async function initiateCall() {
             cleanupConnection();
             peerConnection = new RTCPeerConnection(configuration);
-            localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
+            localStream.getTracks().forEach(track => {
+                peerConnection.addTrack(track, localStream);
+                console.log(`Added track: ${track.kind}`);
+            });
             setupPeerConnection();
             const offer = await peerConnection.createOffer();
             await peerConnection.setLocalDescription(offer);
             ws.send(JSON.stringify({
                 type: 'offer',
                 offer: offer,
-                target: remotePeerId,
-                peerId: myPeerId
+                target: remotePlayerId,
+                playerId: myPlayerId
             }));
         }
 
         async function handleOffer(data) {
             cleanupConnection();
             peerConnection = new RTCPeerConnection(configuration);
-            localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
+            localStream.getTracks().forEach(track => {
+                peerConnection.addTrack(track, localStream);
+                console.log(`Added track: ${track.kind}`);
+            });
             setupPeerConnection();
             await peerConnection.setRemoteDescription(new RTCSessionDescription(data.offer));
             const answer = await peerConnection.createAnswer();
@@ -428,8 +435,8 @@
             ws.send(JSON.stringify({
                 type: 'answer',
                 answer: answer,
-                target: data.peerId,
-                peerId: myPeerId
+                target: data.playerId,
+                playerId: myPlayerId
             }));
             iceCandidates.forEach(async candidate => await handleCandidate(candidate));
             iceCandidates = [];
@@ -453,15 +460,16 @@
 
         function setupPeerConnection() {
             peerConnection.ontrack = event => {
+                console.log('Received remote stream:', event.streams[0].id);
                 remoteVideo.srcObject = event.streams[0];
-                statusText.textContent = 'Connected';
+                statusText.textContent = `Connected to ${remotePlayerId}`;
             };
             peerConnection.onicecandidate = event => {
                 if (event.candidate) {
                     ws.send(JSON.stringify({
                         type: 'candidate',
                         candidate: event.candidate,
-                        target: remotePeerId
+                        target: remotePlayerId
                     }));
                 }
             };
@@ -484,7 +492,7 @@
 
         function endVideoChat() {
             cleanupConnection();
-            remotePeerId = null;
+            remotePlayerId = null;
             reportButton.disabled = true;
             chatInput.disabled = true;
             sendChatButton.disabled = true;
