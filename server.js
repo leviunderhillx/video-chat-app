@@ -4,25 +4,46 @@ const port = process.env.PORT || 10000;
 const wss = new WebSocket.Server({ port });
 
 // --- Data Structures ---
-let peers = new Map();
-let waitingPool = new Set();
-let reports = new Map();
-let bannedIPs = new Set();
+let peers = new Map();          // Maps playerId to WebSocket
+let waitingPool = new Set();    // Set of playerIds waiting to be matched
+let reports = new Map();        // Tracks reports per IP
+let bannedIPs = new Set();      // Banned IPs
 let availablePlayerIds = ['Player 1', 'Player 2', 'Player 3', 'Player 4', 'Player 5'];
-let usedPlayerIds = new Set();
+let usedPlayerIds = new Set();  // Tracks currently used IDs
+let ipToPlayerId = new Map();   // Maps IP to playerId to prevent duplicates
 
-function assignPlayerId() {
+function assignPlayerId(ip) {
+    // Check if this IP already has a player ID
+    if (ipToPlayerId.has(ip)) {
+        const existingId = ipToPlayerId.get(ip);
+        console.log(`IP ${ip} already assigned to ${existingId}, reusing it`);
+        return existingId;
+    }
+
+    // Assign a new ID
     for (let id of availablePlayerIds) {
         if (!usedPlayerIds.has(id)) {
             usedPlayerIds.add(id);
+            ipToPlayerId.set(ip, id);
+            console.log(`Assigned ${id} to IP ${ip}`);
             return id;
         }
     }
+    console.log(`No available player IDs for IP ${ip}`);
     return null;
 }
 
 function releasePlayerId(playerId) {
-    usedPlayerIds.delete(playerId);
+    if (usedPlayerIds.has(playerId)) {
+        usedPlayerIds.delete(playerId);
+        for (let [ip, id] of ipToPlayerId) {
+            if (id === playerId) {
+                ipToPlayerId.delete(ip);
+                break;
+            }
+        }
+        console.log(`Released ${playerId}`);
+    }
 }
 
 function connectRandomPeers() {
@@ -44,13 +65,15 @@ function connectRandomPeers() {
     } else {
         if (!player1 || player1.readyState !== WebSocket.OPEN) {
             waitingPool.delete(player1Id);
-            releasePlayerId(player1Id);
             peers.delete(player1Id);
+            releasePlayerId(player1Id);
+            console.log(`Cleaned up stale ${player1Id}`);
         }
         if (!player2 || player2.readyState !== WebSocket.OPEN) {
             waitingPool.delete(player2Id);
-            releasePlayerId(player2Id);
             peers.delete(player2Id);
+            releasePlayerId(player2Id);
+            console.log(`Cleaned up stale ${player2Id}`);
         }
         setTimeout(connectRandomPeers, 1000);
     }
@@ -92,7 +115,7 @@ wss.on('connection', (ws, req) => {
         return;
     }
 
-    const playerId = assignPlayerId();
+    const playerId = assignPlayerId(ip);
     if (!playerId) {
         ws.send(JSON.stringify({ type: 'error', message: 'No available player slots' }));
         ws.close();
@@ -225,6 +248,8 @@ wss.on('connection', (ws, req) => {
                 targetPeer = peers.get(data.target);
                 if (targetPeer && targetPeer.readyState === WebSocket.OPEN) {
                     targetPeer.send(JSON.stringify(data));
+                } else {
+                    console.log(`Target ${data.target} not found or closed`);
                 }
                 break;
             case 'admin-ban':
@@ -267,7 +292,9 @@ wss.on('connection', (ws, req) => {
         waitingPool.delete(playerId);
         releasePlayerId(playerId);
         peers.forEach(peer => {
-            peer.send(JSON.stringify({ type: 'peer-disconnected', playerId }));
+            if (peer.readyState === WebSocket.OPEN) {
+                peer.send(JSON.stringify({ type: 'peer-disconnected', playerId }));
+            }
         });
         console.log(`Player ${playerId} disconnected`);
         broadcastAdminUpdate();
@@ -280,6 +307,9 @@ wss.on('connection', (ws, req) => {
 
     ws.on('error', (error) => {
         console.error(`WebSocket error for ${playerId}:`, error);
+        peers.delete(playerId);
+        waitingPool.delete(playerId);
+        releasePlayerId(playerId);
     });
 });
 
