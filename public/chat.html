@@ -78,9 +78,6 @@
             ws.onopen = () => {
                 console.log('Connected to signaling server');
                 statusText.textContent = 'Connected to server';
-                if (isVideoOn) {
-                    ws.send(JSON.stringify({ type: 'join' }));
-                }
             };
 
             ws.onmessage = async (event) => {
@@ -100,7 +97,6 @@
                         reportButton.disabled = false;
                         chatInput.disabled = false;
                         sendChatButton.disabled = false;
-                        // Only Player 1 initiates call
                         if (myPlayerId < remotePlayerId) {
                             await initiateCall();
                         }
@@ -164,9 +160,6 @@
                 statusText.textContent = 'Video started';
                 videoToggleButton.textContent = 'Stop Video';
                 isVideoOn = true;
-                if (ws.readyState === WebSocket.OPEN) {
-                    ws.send(JSON.stringify({ type: 'join' }));
-                }
             } catch (error) {
                 console.error('Media error:', error);
                 statusText.textContent = 'Error starting video';
@@ -207,12 +200,9 @@
                 chatInput.disabled = true;
                 sendChatButton.disabled = true;
                 chatMessages.innerHTML = '';
-                statusText.textContent = 'Waiting for match...';
-                ws.send(JSON.stringify({ type: 'join' }));
-            } else {
-                statusText.textContent = 'Waiting for match...';
-                ws.send(JSON.stringify({ type: 'join' }));
             }
+            statusText.textContent = 'Waiting for match...';
+            ws.send(JSON.stringify({ type: 'join' }));
         }
 
         function reportPeer() {
@@ -352,8 +342,7 @@
             sendChatButton.disabled = true;
             chatMessages.innerHTML = '';
             if (isVideoOn) {
-                statusText.textContent = 'Waiting for match...';
-                ws.send(JSON.stringify({ type: 'join' }));
+                statusText.textContent = 'Ready to connect';
             } else {
                 statusText.textContent = 'Video stopped';
                 videoToggleButton.textContent = 'Start Video';
