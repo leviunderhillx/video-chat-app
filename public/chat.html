@@ -125,11 +125,14 @@
                         }
                         break;
                     case 'requeue':
-                        endCall();
-                        statusText.textContent = 'Waiting for match...';
-                        if (isVideoOn && ws.readyState === WebSocket.OPEN) {
-                            ws.send(JSON.stringify({ type: 'join' }));
-                        }
+                        cleanupConnection();
+                        remotePlayerId = null;
+                        reportButton.disabled = true;
+                        chatInput.disabled = true;
+                        sendChatButton.disabled = true;
+                        chatMessages.innerHTML = '';
+                        statusText.textContent = 'Peer ended call';
+                        // Do not auto-rejoin pool unless video is explicitly restarted
                         break;
                 }
             };
@@ -194,8 +197,14 @@
                 return;
             }
             if (remotePlayerId) {
+                console.log('Ending call with:', remotePlayerId);
                 ws.send(JSON.stringify({ type: 'skip-chat', myPlayerId: myPlayerId, target: remotePlayerId }));
-                endCall();
+                cleanupConnection();
+                remotePlayerId = null;
+                reportButton.disabled = true;
+                chatInput.disabled = true;
+                sendChatButton.disabled = true;
+                chatMessages.innerHTML = '';
                 statusText.textContent = 'Waiting for match...';
                 ws.send(JSON.stringify({ type: 'join' }));
             } else {
@@ -334,7 +343,7 @@
 
         function endCall() {
             cleanupConnection();
-            // Only clear remotePlayerId if explicitly ending the session, not on every cleanup
+            remotePlayerId = null;
             reportButton.disabled = true;
             chatInput.disabled = true;
             sendChatButton.disabled = true;

@@ -63,18 +63,6 @@ function connectRandomPeers() {
     }
 }
 
-function broadcastAdminUpdate() {
-    peers.forEach(ws => {
-        if (ws.isAdmin) {
-            const connectedPeers = Array.from(peers.entries()).map(([id, peer]) => ({
-                playerId: id,
-                ip: peer.ip
-            }));
-            ws.send(JSON.stringify({ type: 'admin-update', peers: connectedPeers }));
-        }
-    });
-}
-
 function pingPeers() {
     peers.forEach((ws, playerId) => {
         if (ws.readyState === WebSocket.OPEN) {
@@ -108,7 +96,6 @@ wss.on('connection', (ws, req) => {
 
     peers.set(playerId, ws);
     ws.ip = ip;
-    ws.isAdmin = false;
     ws.send(JSON.stringify({ type: 'connected', playerId }));
 
     ws.on('message', (message) => {
@@ -121,25 +108,12 @@ wss.on('connection', (ws, req) => {
             return;
         }
 
-        let myPlayerId, reportedPlayerId, targetPlayerId, reportedWs, myWs, targetPeer, targetWs, adminPeer, reportedIP, reportCount;
+        let myPlayerId, reportedPlayerId, targetPlayerId, reportedWs, myWs, targetWs, reportCount;
 
         switch (data.type) {
-            case 'admin-login':
-                if (data.password === (process.env.ADMIN_PASSWORD || 'secret123')) {
-                    ws.isAdmin = true;
-                    console.log(`${playerId} is now admin`);
-                    broadcastAdminUpdate();
-                }
-                break;
             case 'join':
                 waitingPool.add(playerId);
                 connectRandomPeers();
-                broadcastAdminUpdate();
-                break;
-            case 'leave':
-                waitingPool.delete(playerId);
-                console.log(`${playerId} left the waiting pool`);
-                broadcastAdminUpdate();
                 break;
             case 'stop-video':
                 myPlayerId = data.myPlayerId;
@@ -152,26 +126,17 @@ wss.on('connection', (ws, req) => {
                     console.log(`Requeued ${targetPlayerId} due to ${myPlayerId} stopping video`);
                 }
                 waitingPool.delete(myPlayerId);
-                broadcastAdminUpdate();
                 break;
             case 'skip-chat':
                 myPlayerId = data.myPlayerId;
                 targetPlayerId = data.target;
-                myWs = peers.get(myPlayerId);
                 targetWs = peers.get(targetPlayerId);
 
-                if (myWs && myWs.readyState === WebSocket.OPEN) {
-                    myWs.send(JSON.stringify({ type: 'requeue' }));
-                    waitingPool.add(myPlayerId);
-                    console.log(`Requeued ${myPlayerId} due to skipping chat`);
-                }
                 if (targetWs && targetWs.readyState === WebSocket.OPEN) {
-                    targetWs.send(JSON.stringify({ type: 'requeue' }));
-                    waitingPool.add(targetPlayerId);
-                    console.log(`Requeued ${targetPlayerId} due to ${myPlayerId} skipping chat`);
+                    targetWs.send(JSON.stringify({ type: 'requeue' })); // Only notify target to end, no requeue
+                    console.log(`${targetPlayerId} notified to end call by ${myPlayerId}`);
                 }
-                setTimeout(connectRandomPeers, 5000);
-                broadcastAdminUpdate();
+                waitingPool.delete(myPlayerId); // Initiator will rejoin explicitly
                 break;
             case 'report':
                 reportedPlayerId = data.reportedPlayerId;
@@ -206,66 +171,16 @@ wss.on('connection', (ws, req) => {
                     waitingPool.add(myPlayerId);
                 }
                 connectRandomPeers();
-                broadcastAdminUpdate();
                 break;
-            case 'end-chat':
-                myPlayerId = data.myPlayerId;
-                targetPlayerId = data.target;
-                targetWs = peers.get(targetPlayerId);
-                myWs = peers.get(myPlayerId);
-
-                if (targetWs && targetWs.readyState === WebSocket.OPEN) {
-                    targetWs.send(JSON.stringify({ type: 'requeue' }));
-                    waitingPool.add(targetPlayerId);
-                }
-                if (myWs && myWs.readyState === WebSocket.OPEN) {
-                    myWs.send(JSON.stringify({ type: 'requeue' }));
-                    waitingPool.add(myPlayerId);
-                }
-                connectRandomPeers();
-                broadcastAdminUpdate();
-                break;
-            case 'chat':
             case 'offer':
             case 'answer':
             case 'candidate':
-                targetPeer = peers.get(data.target);
-                if (targetPeer && targetPeer.readyState === WebSocket.OPEN) {
-                    targetPeer.send(JSON.stringify(data));
+            case 'chat':
+                targetWs = peers.get(data.target);
+                if (targetWs && targetWs.readyState === WebSocket.OPEN) {
+                    targetWs.send(JSON.stringify(data));
                 } else {
                     console.log(`Target ${data.target} not found or closed`);
-                }
-                break;
-            case 'admin-ban':
-                if (ws.isAdmin) {
-                    targetWs = peers.get(data.playerId);
-                    if (targetWs) {
-                        bannedIPs.add(targetWs.ip);
-                        targetWs.send(JSON.stringify({ type: 'banned', reason: 'Admin ban' }));
-                        targetWs.close();
-                        peers.delete(data.playerId);
-                        waitingPool.delete(data.playerId);
-                        releasePlayerId(data.playerId);
-                        broadcastAdminUpdate();
-                    }
-                }
-                break;
-            case 'admin-screenshot-request':
-                if (ws.isAdmin) {
-                    targetPeer = peers.get(data.playerId);
-                    if (targetPeer) {
-                        targetPeer.send(JSON.stringify({ type: 'screenshot-request', requester: playerId }));
-                    }
-                }
-                break;
-            case 'screenshot-response':
-                adminPeer = peers.get(data.requester);
-                if (adminPeer && adminPeer.isAdmin) {
-                    adminPeer.send(JSON.stringify({
-                        type: 'screenshot-response',
-                        playerId: playerId,
-                        screenshot: data.screenshot
-                    }));
                 }
                 break;
         }
@@ -281,7 +196,6 @@ wss.on('connection', (ws, req) => {
             }
         });
         console.log(`Player ${playerId} disconnected`);
-        broadcastAdminUpdate();
         connectRandomPeers();
     });
 
