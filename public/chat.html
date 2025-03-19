@@ -107,6 +107,7 @@
                         break;
                     case 'offer':
                         console.log('Offer from:', data.playerId);
+                        remotePlayerId = data.playerId; // Ensure remotePlayerId is set
                         await handleOffer(data);
                         break;
                     case 'answer':
@@ -230,6 +231,10 @@
 
         async function startPeerConnection() {
             endCall(); // Reset any existing connection
+            if (!remotePlayerId) {
+                console.error('No remotePlayerId set for offer');
+                return;
+            }
             peerConnection = new RTCPeerConnection(configuration);
             console.log('New peer connection created');
 
@@ -270,6 +275,10 @@
 
         async function handleOffer(data) {
             endCall(); // Reset any existing connection
+            if (!remotePlayerId) {
+                console.error('No remotePlayerId set for handling offer');
+                return;
+            }
             peerConnection = new RTCPeerConnection(configuration);
             console.log('New peer connection created for offer');
 
@@ -292,7 +301,7 @@
             };
 
             peerConnection.oniceconnectionstatechange = () => {
-                console.log('ICE state:', peerConnection.iceConnectionstate);
+                console.log('ICE state:', peerConnection.iceConnectionState);
                 if (peerConnection.iceConnectionState === 'disconnected' || peerConnection.iceConnectionState === 'failed') {
                     endCall();
                     statusText.textContent = 'Connection lost';
@@ -305,10 +314,9 @@
             await peerConnection.setRemoteDescription(new RTCSessionDescription(data.offer));
             const answer = await peerConnection.createAnswer();
             await peerConnection.setLocalDescription(answer);
-            console.log('Sending answer to:', data.playerId);
-            ws.send(JSON.stringify({ type: 'answer', answer: answer, target: data.playerId, playerId: myPlayerId }));
+            console.log('Sending answer to:', remotePlayerId);
+            ws.send(JSON.stringify({ type: 'answer', answer: answer, target: remotePlayerId, playerId: myPlayerId }));
 
-            // Apply any pending candidates
             for (const candidate of pendingCandidates) {
                 await handleCandidate(candidate);
             }
