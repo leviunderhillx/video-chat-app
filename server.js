@@ -3,14 +3,12 @@ const WebSocket = require('ws');
 const port = process.env.PORT || 10000;
 const wss = new WebSocket.Server({ port });
 
-// --- Data Structures ---
-let peers = new Map();          // Stores all connected peers (peerId -> WebSocket)
-let waitingPool = new Set();    // Peers waiting to be matched
-let reports = new Map();        // Tracks reports per IP
-let bannedIPs = new Set();      // Banned IPs
+let peers = new Map();
+let waitingPool = new Set();
+let reports = new Map();
+let bannedIPs = new Set();
 
 function connectRandomPeers() {
-    // Matches two peers from the waiting pool
     const waitingArray = Array.from(waitingPool);
     if (waitingArray.length < 2) return;
 
@@ -26,7 +24,6 @@ function connectRandomPeers() {
         waitingPool.delete(peer1Id);
         waitingPool.delete(peer2Id);
     } else {
-        // Remove stale peers and retry
         if (!peer1 || peer1.readyState !== WebSocket.OPEN) waitingPool.delete(peer1Id);
         if (!peer2 || peer2.readyState !== WebSocket.OPEN) waitingPool.delete(peer2Id);
         setTimeout(connectRandomPeers, 1000);
@@ -34,7 +31,6 @@ function connectRandomPeers() {
 }
 
 function broadcastAdminUpdate() {
-    // Sends updated peer list to all admins
     peers.forEach(ws => {
         if (ws.isAdmin) {
             const connectedPeers = Array.from(peers.entries()).map(([id, peer]) => ({
@@ -47,7 +43,6 @@ function broadcastAdminUpdate() {
 }
 
 function pingPeers() {
-    // Pings all peers to detect dead connections
     peers.forEach((ws, peerId) => {
         if (ws.readyState === WebSocket.OPEN) {
             ws.ping();
@@ -59,11 +54,9 @@ function pingPeers() {
     });
 }
 
-// Ping every 30 seconds to keep connections alive on Render
 setInterval(pingPeers, 30000);
 
 wss.on('connection', (ws, req) => {
-    // --- New Connection Handler ---
     const ip = req.headers['x-forwarded-for']?.split(',')[0] || req.socket.remoteAddress;
     console.log(`New connection from IP: ${ip}`);
     if (bannedIPs.has(ip)) {
@@ -90,7 +83,6 @@ wss.on('connection', (ws, req) => {
 
         switch (data.type) {
             case 'admin-login':
-                // Authenticate admin
                 if (data.password === (process.env.ADMIN_PASSWORD || 'secret123')) {
                     ws.isAdmin = true;
                     console.log(`${peerId} is now admin`);
@@ -98,13 +90,16 @@ wss.on('connection', (ws, req) => {
                 }
                 break;
             case 'join':
-                // Add peer to waiting pool
                 waitingPool.add(peerId);
                 connectRandomPeers();
                 broadcastAdminUpdate();
                 break;
+            case 'leave': // New case to handle video stop
+                waitingPool.delete(peerId);
+                console.log(`${peerId} left the waiting pool`);
+                broadcastAdminUpdate();
+                break;
             case 'report':
-                // Handle peer report
                 const reportedPeerId = data.reportedPeerId;
                 const myPeerId = data.myPeerId;
                 const reportedWs = peers.get(reportedPeerId);
@@ -139,7 +134,6 @@ wss.on('connection', (ws, req) => {
                 broadcastAdminUpdate();
                 break;
             case 'end-chat':
-                // End chat and requeue both peers
                 const myPeerId = data.myPeerId;
                 const targetPeerId = data.target;
                 const targetWs = peers.get(targetPeerId);
@@ -160,14 +154,12 @@ wss.on('connection', (ws, req) => {
             case 'offer':
             case 'answer':
             case 'candidate':
-                // Relay signaling or chat messages
                 const targetPeer = peers.get(data.target);
                 if (targetPeer && targetPeer.readyState === WebSocket.OPEN) {
                     targetPeer.send(JSON.stringify(data));
                 }
                 break;
             case 'admin-ban':
-                // Admin bans a peer
                 if (ws.isAdmin) {
                     const targetWs = peers.get(data.peerId);
                     if (targetWs) {
@@ -181,7 +173,6 @@ wss.on('connection', (ws, req) => {
                 }
                 break;
             case 'admin-screenshot-request':
-                // Admin requests a screenshot
                 if (ws.isAdmin) {
                     const targetPeer = peers.get(data.peerId);
                     if (targetPeer) {
@@ -190,7 +181,6 @@ wss.on('connection', (ws, req) => {
                 }
                 break;
             case 'screenshot-response':
-                // Relay screenshot to admin
                 const adminPeer = peers.get(data.requester);
                 if (adminPeer && adminPeer.isAdmin) {
                     adminPeer.send(JSON.stringify({
@@ -204,7 +194,6 @@ wss.on('connection', (ws, req) => {
     });
 
     ws.on('close', () => {
-        // Clean up on disconnect
         peers.delete(peerId);
         waitingPool.delete(peerId);
         peers.forEach(peer => {
@@ -215,7 +204,6 @@ wss.on('connection', (ws, req) => {
     });
 
     ws.on('pong', () => {
-        // Keep connection alive
         ws.isAlive = true;
     });
 
