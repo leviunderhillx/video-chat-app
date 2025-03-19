@@ -27,6 +27,7 @@ function connectRandomPeers() {
     } else {
         if (!peer1 || peer1.readyState !== WebSocket.OPEN) waitingPool.delete(peer1Id);
         if (!peer2 || peer2.readyState !== WebSocket.OPEN) waitingPool.delete(peer2Id);
+        // Add a small delay before retrying to avoid rapid re-matching
         setTimeout(connectRandomPeers, 1000);
     }
 }
@@ -116,7 +117,6 @@ wss.on('connection', (ws, req) => {
                 broadcastAdminUpdate();
                 break;
             case 'skip-chat':
-                // Handle skipping current chat and requeuing both peers
                 myPeerId = data.myPeerId;
                 targetPeerId = data.target;
                 myWs = peers.get(myPeerId);
@@ -132,7 +132,8 @@ wss.on('connection', (ws, req) => {
                     waitingPool.add(targetPeerId);
                     console.log(`Requeued ${targetPeerId} due to ${myPeerId} skipping chat`);
                 }
-                connectRandomPeers();
+                // Delay matching to allow client-side cleanup
+                setTimeout(connectRandomPeers, 3000);
                 broadcastAdminUpdate();
                 break;
             case 'report':
@@ -175,83 +176,4 @@ wss.on('connection', (ws, req) => {
                 targetWs = peers.get(targetPeerId);
                 myWs = peers.get(myPeerId);
 
-                if (targetWs && targetWs.readyState === WebSocket.OPEN) {
-                    targetWs.send(JSON.stringify({ type: 'requeue' }));
-                    waitingPool.add(targetPeerId);
-                }
-                if (myWs && myWs.readyState === WebSocket.OPEN) {
-                    myWs.send(JSON.stringify({ type: 'requeue' }));
-                    waitingPool.add(myPeerId);
-                }
-                connectRandomPeers();
-                broadcastAdminUpdate();
-                break;
-            case 'chat':
-            case 'offer':
-            case 'answer':
-            case 'candidate':
-                targetPeer = peers.get(data.target);
-                if (targetPeer && targetPeer.readyState === WebSocket.OPEN) {
-                    targetPeer.send(JSON.stringify(data));
-                }
-                break;
-            case 'admin-ban':
-                if (ws.isAdmin) {
-                    targetWs = peers.get(data.peerId);
-                    if (targetWs) {
-                        bannedIPs.add(targetWs.ip);
-                        targetWs.send(JSON.stringify({ type: 'banned', reason: 'Admin ban' }));
-                        targetWs.close();
-                        peers.delete(data.peerId);
-                        waitingPool.delete(data.peerId);
-                        broadcastAdminUpdate();
-                    }
-                }
-                break;
-            case 'admin-screenshot-request':
-                if (ws.isAdmin) {
-                    targetPeer = peers.get(data.peerId);
-                    if (targetPeer) {
-                        targetPeer.send(JSON.stringify({ type: 'screenshot-request', requester: peerId }));
-                    }
-                }
-                break;
-            case 'screenshot-response':
-                adminPeer = peers.get(data.requester);
-                if (adminPeer && adminPeer.isAdmin) {
-                    adminPeer.send(JSON.stringify({
-                        type: 'screenshot-response',
-                        peerId: peerId,
-                        screenshot: data.screenshot
-                    }));
-                }
-                break;
-        }
-    });
-
-    ws.on('close', () => {
-        peers.delete(peerId);
-        waitingPool.delete(peerId);
-        peers.forEach(peer => {
-            peer.send(JSON.stringify({ type: 'peer-disconnected', peerId }));
-        });
-        broadcastAdminUpdate();
-        connectRandomPeers();
-    });
-
-    ws.on('pong', () => {
-        ws.isAlive = true;
-    });
-
-    ws.on('error', (error) => {
-        console.error(`WebSocket error for ${peerId}:`, error);
-    });
-});
-
-wss.on('error', (error) => {
-    console.error('Server error:', error);
-});
-
-wss.on('listening', () => {
-    console.log(`Server running on port ${port}`);
-});
+                if (targetW

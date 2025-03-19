@@ -204,7 +204,6 @@
                         }
                         break;
                     case 'requeue':
-                        // Requeue without stopping video if still on
                         cleanupConnection();
                         remotePeerId = null;
                         reportButton.disabled = true;
@@ -308,9 +307,17 @@
                 sendChatButton.disabled = true;
                 chatMessages.innerHTML = '';
                 statusText.textContent = 'Waiting for match...';
+                // Add 3-second delay before rejoining the pool
+                setTimeout(() => {
+                    if (isVideoOn && ws.readyState === WebSocket.OPEN) {
+                        ws.send(JSON.stringify({ type: 'join' }));
+                    }
+                }, 3000);
+            } else {
+                // If not connected, join the pool immediately
+                ws.send(JSON.stringify({ type: 'join' }));
+                statusText.textContent = 'Waiting for match...';
             }
-            // Always join the pool (whether skipping or starting fresh)
-            ws.send(JSON.stringify({ type: 'join' }));
         }
 
         function reportPeer() {
