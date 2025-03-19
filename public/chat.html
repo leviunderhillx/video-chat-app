@@ -21,50 +21,36 @@
         #status { margin-top: 10px; font-size: 14px; color: #666; }
         .video-container {
             display: flex;
-            gap: 15px; /* Adjusted gap for balance */
+            gap: 15px;
             padding: 15px;
             background-color: #fff;
             border-radius: 10px;
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
             margin: 20px 0;
-            flex-wrap: wrap; /* Allows wrapping on smaller screens */
+            flex-wrap: wrap;
             justify-content: center;
             width: 95%;
             max-width: 1400px;
         }
         video {
-            /* Default size for desktops - larger but proportional */
-            width: 100%; /* Full width of container divided by flex */
-            max-width: 640px; /* Max size for desktops */
-            height: auto; /* Maintains aspect ratio */
+            width: 100%;
+            max-width: 640px;
+            height: auto;
             background-color: #000;
             border-radius: 5px;
             object-fit: cover;
-            flex: 1 1 45%; /* Flex-grow, flex-shrink, flex-basis: 45% for two videos */
-            min-width: 300px; /* Ensures videos don’t get too tiny */
+            flex: 1 1 45%;
+            min-width: 300px;
         }
-        @media (max-width: 1024px) { /* Large tablets and smaller laptops */
-            video {
-                max-width: 480px; /* Slightly smaller for mid-range screens */
-                flex-basis: 45%; /* Still side-by-side */
-            }
+        @media (max-width: 1024px) {
+            video { max-width: 480px; flex-basis: 45%; }
         }
-        @media (max-width: 768px) { /* Tablets and large phones */
-            video {
-                max-width: 360px; /* Adjusted for tablets */
-                flex-basis: 48%; /* Slightly wider to fit two videos */
-            }
+        @media (max-width: 768px) {
+            video { max-width: 360px; flex-basis: 48%; }
         }
-        @media (max-width: 480px) { /* Small phones */
-            .video-container {
-                flex-direction: column; /* Stack vertically on small screens */
-                gap: 10px;
-            }
-            video {
-                max-width: 100%; /* Full width of container */
-                flex-basis: auto; /* Reset flex-basis */
-                min-width: 0; /* Allow full width */
-            }
+        @media (max-width: 480px) {
+            .video-container { flex-direction: column; gap: 10px; }
+            video { max-width: 100%; flex-basis: auto; min-width: 0; }
         }
         #chat-container { width: 90%; max-width: 1000px; margin-top: 20px; }
         #chat-messages { height: 150px; overflow-y: auto; border: 1px solid #ccc; padding: 10px; background-color: white; border-radius: 5px; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05); }
@@ -86,7 +72,6 @@
         <button id="videoToggleButton" onclick="toggleVideo()">Start Video</button>
         <button onclick="connectRandom()">Connect Random</button>
         <button onclick="reportPeer()" id="reportButton" disabled>Report User</button>
-        <!-- Removed End Chat button -->
     </div>
     <div id="status">Status: <span id="statusText">Disconnected</span></div>
     
@@ -219,10 +204,15 @@
                         }
                         break;
                     case 'requeue':
+                        // Requeue without stopping video if still on
                         cleanupConnection();
+                        remotePeerId = null;
+                        reportButton.disabled = true;
+                        chatInput.disabled = true;
+                        sendChatButton.disabled = true;
+                        chatMessages.innerHTML = '';
                         statusText.textContent = 'Waiting for match...';
-                        if (isVideoOn) {
-                            await startVideoChat();
+                        if (isVideoOn && ws.readyState === WebSocket.OPEN) {
                             ws.send(JSON.stringify({ type: 'join' }));
                         }
                         break;
@@ -256,7 +246,7 @@
                     localStream = null;
                 }
                 localStream = await navigator.mediaDevices.getUserMedia({ 
-                    video: true, // Let browser choose optimal resolution
+                    video: true,
                     audio: true 
                 });
                 localVideo.srcObject = localStream;
@@ -279,9 +269,19 @@
                 videoToggleButton.textContent = 'Start Video';
                 isVideoOn = false;
                 if (ws.readyState === WebSocket.OPEN) {
-                    ws.send(JSON.stringify({ type: 'leave' }));
+                    // Notify server to end chat and requeue the other peer
+                    ws.send(JSON.stringify({ 
+                        type: 'stop-video', 
+                        myPeerId: myPeerId, 
+                        target: remotePeerId 
+                    }));
                 }
                 cleanupConnection();
+                remotePeerId = null;
+                reportButton.disabled = true;
+                chatInput.disabled = true;
+                sendChatButton.disabled = true;
+                chatMessages.innerHTML = '';
             }
         }
 
@@ -462,7 +462,6 @@
         }
 
         function endVideoChat() {
-            // Simplified to just clean up connection and reset UI
             cleanupConnection();
             remotePeerId = null;
             reportButton.disabled = true;
